@@ -3,6 +3,7 @@ import { getWakeWordDetection } from '../services/wakeWord';
 import { getAudioRecorder } from '../services/audioRecorder';
 import { transcribeAudio } from '../services/stt';
 import { synthesizeText, playAudio } from '../services/tts';
+import { generateCompletion } from '../services/llm';
 
 export interface Message {
   id: string;
@@ -158,27 +159,46 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         wakeWordDetected: false, // Reset wake word flash
       });
       
-      // Add user message
-      get().addMessage('user', result.text);
-      
       console.log('📝 User said:', result.text);
       
-      // Generate TTS response (echo back for now)
-      // TODO: Send to LLM service first to get a real response
-      const responseText = `You said: ${result.text}`;
+      // Get conversation history for context (last 10 messages)
+      const history = get().messages
+        .slice(-10)
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content,
+        }));
+      
+      // Generate LLM response
+      const llmResult = await generateCompletion(
+        result.text,
+        history,
+        {
+          systemPrompt: 'You are a helpful AI assistant. Keep responses concise and natural for voice conversation.',
+          temperature: 0.7,
+          maxTokens: 150,
+        }
+      );
+      
+      const responseText = llmResult.text;
+      
+      // Add user and assistant messages to history
+      get().addMessage('user', result.text);
+      get().addMessage('assistant', responseText);
       
       // Synthesize speech
       const audioResponse = await synthesizeText(responseText);
       
       set({ isProcessing: false, isSpeaking: true });
       
-      // Add assistant message
-      get().addMessage('assistant', responseText);
-      
       // Play audio
       await playAudio(audioResponse);
       
       set({ isSpeaking: false });
+      
+      // Automatically start listening again for follow-up conversation
+      console.log('🎙️ Ready for follow-up - listening...');
+      get().startRecording();
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Recording failed';

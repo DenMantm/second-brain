@@ -2,10 +2,10 @@ import type { FastifyInstance } from 'fastify';
 
 export function setupWebSocket(fastify: FastifyInstance) {
   fastify.register(async function (fastify) {
-    fastify.get('/ws', { websocket: true }, (connection, request) => {
+    fastify.get('/ws', { websocket: true }, (connection, _request) => {
       fastify.log.info('WebSocket client connected');
 
-      connection.socket.on('message', async (message) => {
+      connection.socket.on('message', async (message: Buffer | ArrayBuffer | Buffer[]) => {
         try {
           const data = JSON.parse(message.toString());
           fastify.log.info('Received:', data);
@@ -35,7 +35,7 @@ export function setupWebSocket(fastify: FastifyInstance) {
               );
           }
         } catch (error) {
-          fastify.log.error('WebSocket error:', error);
+          fastify.log.error({ error }, 'WebSocket error');
           connection.socket.send(
             JSON.stringify({
               type: 'error',

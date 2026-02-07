@@ -1,5 +1,4 @@
 import type { FastifyInstance } from 'fastify';
-import { config } from '../config';
 
 export async function chatRoutes(fastify: FastifyInstance) {
   // Chat endpoint - will integrate with LLM service
@@ -21,7 +20,7 @@ export async function chatRoutes(fastify: FastifyInstance) {
 
       return response;
     } catch (error) {
-      fastify.log.error('Chat error:', error);
+      fastify.log.error({ error }, 'Chat error');
       reply.code(500).send({
         error: 'Chat service unavailable',
         message: error instanceof Error ? error.message : 'Unknown error',

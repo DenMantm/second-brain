@@ -70,4 +70,14 @@ async function start() {
   }
 }
 
+// Graceful shutdown handlers
+const signals = ['SIGINT', 'SIGTERM'] as const;
+signals.forEach((signal) => {
+  process.on(signal, async () => {
+    fastify.log.info(`Received ${signal}, closing server gracefully...`);
+    await fastify.close();
+    process.exit(0);
+  });
+});
+
 start();

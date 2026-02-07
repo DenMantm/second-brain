@@ -18,7 +18,7 @@ export async function ttsRoutes(fastify: FastifyInstance) {
       const data = await response.json();
       return data;
     } catch (error) {
-      fastify.log.error('TTS error:', error);
+      fastify.log.error({ error }, 'TTS error');
       reply.code(500).send({
         error: 'TTS service unavailable',
         message: error instanceof Error ? error.message : 'Unknown error',

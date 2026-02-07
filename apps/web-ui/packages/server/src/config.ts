@@ -15,7 +15,7 @@ export const config = {
   // Services
   ttsServiceUrl: process.env.TTS_SERVICE_URL || 'http://localhost:3002',
   sttServiceUrl: process.env.STT_SERVICE_URL || 'http://localhost:3003',
-  llmServiceUrl: process.env.LLM_SERVICE_URL || 'http://localhost:8080',
+  llmServiceUrl: process.env.LLM_SERVICE_URL || 'http://localhost:1234/v1',
 
   // API Keys (for future use)
   porcupineAccessKey: process.env.PORCUPINE_ACCESS_KEY || '',

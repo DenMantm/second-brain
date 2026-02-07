@@ -23,8 +23,8 @@ export class AudioRecorder {
   
   private options: Required<AudioRecorderOptions> = {
     maxDuration: 30000, // 30 seconds
-    silenceThreshold: 0.02, // 2% volume (increased from 1%)
-    silenceDuration: 2000, // 2 seconds of silence (increased from 1.5s)
+    silenceThreshold: 0.1, // 10% volume (high threshold for noise immunity)
+    silenceDuration: 2000, // 2 seconds of silence
     minDuration: 1000, // 1 second minimum before VAD starts
   };
 
@@ -152,20 +152,29 @@ export class AudioRecorder {
 
     const bufferLength = this.analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
+    const sampleRate = this.audioContext?.sampleRate || 16000;
+    
+    // Calculate frequency bin indices for speech range (300-3400 Hz)
+    const speechLowHz = 300;
+    const speechHighHz = 3400;
+    const binSize = sampleRate / (this.analyser.fftSize);
+    const lowBin = Math.floor(speechLowHz / binSize);
+    const highBin = Math.ceil(speechHighHz / binSize);
 
     const checkAudio = () => {
       if (!this._recording || !this.analyser) return;
 
       this.analyser.getByteFrequencyData(dataArray);
       
-      // Calculate average volume
-      const sum = dataArray.reduce((a, b) => a + b, 0);
-      const average = sum / bufferLength;
+      // Calculate average volume in speech frequency range only
+      const speechData = dataArray.slice(lowBin, highBin);
+      const sum = speechData.reduce((a, b) => a + b, 0);
+      const average = sum / speechData.length;
       const volume = average / 255; // Normalize to 0-1
 
       // Log volume for debugging (can be removed later)
       if (Math.random() < 0.1) { // Log ~10% of checks to avoid spam
-        console.log(`🎚️ Volume: ${(volume * 100).toFixed(1)}%`);
+        console.log(`🎚️ Speech Volume: ${(volume * 100).toFixed(1)}%`);
       }
 
       // Check if volume is below silence threshold
@@ -181,7 +190,7 @@ export class AudioRecorder {
       } else {
         // Reset silence timer if there's audio
         if (this.silenceTimer) {
-          console.log(`🔊 Audio detected (volume: ${(volume * 100).toFixed(1)}%), resetting silence timer`);
+          console.log(`🔊 Speech detected (volume: ${(volume * 100).toFixed(1)}%), resetting silence timer`);
           clearTimeout(this.silenceTimer);
           this.silenceTimer = null;
         }

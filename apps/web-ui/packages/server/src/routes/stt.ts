@@ -27,7 +27,7 @@ export async function sttRoutes(fastify: FastifyInstance) {
       const data = await response.json();
       return data;
     } catch (error) {
-      fastify.log.error('STT error:', error);
+      fastify.log.error({ error }, 'STT error');
       reply.code(500).send({
         error: 'STT service unavailable',
         message: error instanceof Error ? error.message : 'Unknown error',
