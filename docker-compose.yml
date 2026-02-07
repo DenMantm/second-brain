@@ -1,0 +1,65 @@
+# Docker Compose for Second Brain Services - CPU Optimized
+version: '3.8'
+
+services:
+  # Text-to-Speech Service (CPU)
+  tts-service:
+    build:
+      context: ./apps/tts-service
+      dockerfile: Dockerfile
+    container_name: second-brain-tts
+    ports:
+      - "3002:3002"
+    volumes:
+      # Mount models directory (read-only)
+      - ./models/piper:/models/piper:ro
+      # Mount source code for development (optional, comment out for production)
+      - ./apps/tts-service/src:/app/src:ro
+    environment:
+      - ENVIRONMENT=development
+      - MODEL_PATH=/models/piper/en_US-lessac-medium.onnx
+      - VOICE_CONFIG_PATH=/models/piper/en_US-lessac-medium.onnx.json
+      - LOG_LEVEL=info
+    restart: unless-stopped
+    networks:
+      - second-brain-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Speech-to-Text Service (CPU)
+  stt-service:
+    build:
+      context: ./apps/stt-service
+      dockerfile: Dockerfile
+    container_name: second-brain-stt
+    ports:
+      - "3003:3003"
+    volumes:
+      # Mount models directory for Whisper models
+      - ./models/whisper:/models/whisper
+      # Mount source code for development (optional, comment out for production)
+      - ./apps/stt-service/src:/app/src:ro
+    environment:
+      - ENVIRONMENT=development
+      - MODEL_PATH=/models/whisper
+      - MODEL_SIZE=base
+      - DEVICE=cpu
+      - COMPUTE_TYPE=int8
+      - LOG_LEVEL=info
+    restart: unless-stopped
+    networks:
+      - second-brain-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  second-brain-network:
+    driver: bridge

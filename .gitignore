@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+venv/
+venv-windows/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+htmlcov/
+
+# Models (too large for git)
+models/
+*.onnx
+*.bin
+*.pt
+*.pth
+*.safetensors
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+.cache/
+
+# Test results
+test-results/
+playwright-report/
+.last-run.json
+
+# Data
+data/
+uploads/
+*.db
+*.sqlite
