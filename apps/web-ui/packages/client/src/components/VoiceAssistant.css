@@ -55,12 +55,12 @@
   background: var(--color-primary);
   color: white;
   border: none;
-  padding: 1rem 2rem;
-  font-size: 1.1rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
-  min-width: 200px;
+  min-width: 180px;
 }
 
 .primary-button:hover:not(:disabled) {
@@ -75,6 +75,71 @@
 
 .primary-button.listening:hover:not(:disabled) {
   background: #22c55e;
+}
+
+.interrupt-button {
+  background: #f97316;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-left: 1rem;
+  min-width: 180px;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.interrupt-button:hover {
+  background: #ea580c;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
+}
+
+.stop-button {
+  background: var(--color-error);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-left: 1rem;
+  min-width: 180px;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.stop-button:hover {
+  background: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.new-conversation-button {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.5);
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-left: 1rem;
+  min-width: 180px;
+}
+
+.new-conversation-button:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.3);
+  border-color: rgba(99, 102, 241, 0.7);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.new-conversation-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .hint {

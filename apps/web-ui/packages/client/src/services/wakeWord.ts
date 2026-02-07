@@ -59,6 +59,13 @@ export class WakeWordDetection {
   }
 
   /**
+   * Check if wake word detection is initialized
+   */
+  isInitialized(): boolean {
+    return this.recognizer !== null;
+  }
+
+  /**
    * Start listening for the wake word
    */
   async start(): Promise<void> {

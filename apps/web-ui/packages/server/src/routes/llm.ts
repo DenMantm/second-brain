@@ -1,60 +1,65 @@
 import type { FastifyInstance } from 'fastify';
 import { config } from '../config';
+import { sendMessage, clearConversation } from '../services/conversation-memory';
 
 export async function llmRoutes(fastify: FastifyInstance) {
-  // Proxy to LLM service (LM Studio)
+  // Chat with conversation memory (LangChain)
   fastify.post('/chat', async (request, reply) => {
     try {
-      fastify.log.info({ body: request.body }, 'LLM request body');
-      
-      const llmUrl = `${config.llmServiceUrl}/chat/completions`;
-      fastify.log.info(`Sending to LLM service: ${llmUrl}`);
-      
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-      
-      const response = await fetch(llmUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request.body),
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeout);
+      const { message, sessionId, temperature, maxTokens } = request.body as {
+        message: string;
+        sessionId?: string;
+        temperature?: number;
+        maxTokens?: number;
+      };
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        fastify.log.error(`LLM service error: ${response.status} - ${errorText}`);
-        throw new Error(`LLM service error: ${response.status} - ${errorText}`);
+      if (!message) {
+        return reply.code(400).send({ error: 'Message is required' });
       }
 
-      const data = await response.json() as {
-        choices?: Array<{ message?: { content?: string } }>;
-        model?: string;
-        usage?: {
-          prompt_tokens: number;
-          completion_tokens: number;
-          total_tokens: number;
-        };
-      };
+      // Use sessionId or create a default one
+      const session = sessionId || 'default-session';
+
+      fastify.log.info({ message, session }, 'LLM chat request');
+
+      // Send message and get response using LangChain memory
+      const responseText = await sendMessage(session, message, {
+        temperature: temperature ?? 0.7,
+        maxTokens: maxTokens ?? 150,
+      });
+
       fastify.log.info('LLM response received');
-      
-      // Extract the response text from OpenAI format
-      const text = data.choices?.[0]?.message?.content || '';
-      
+
       return {
-        text,
-        model: data.model || 'unknown',
-        usage: data.usage ? {
-          promptTokens: data.usage.prompt_tokens,
-          completionTokens: data.usage.completion_tokens,
-          totalTokens: data.usage.total_tokens,
-        } : undefined,
+        text: responseText,
+        sessionId: session,
       };
     } catch (error) {
-      fastify.log.error({ error }, 'LLM error');
+      fastify.log.error({ 
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      }, 'LLM error');
       reply.code(500).send({
         error: 'LLM service unavailable',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  // Clear conversation history
+  fastify.post('/clear', async (request, reply) => {
+    try {
+      const { sessionId } = request.body as { sessionId?: string };
+      const session = sessionId || 'default-session';
+
+      await clearConversation(session);
+
+      return { success: true, sessionId: session };
+    } catch (error) {
+      fastify.log.error({ error }, 'Clear conversation error');
+      reply.code(500).send({
+        error: 'Failed to clear conversation',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
     }

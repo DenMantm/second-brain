@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import VoiceAssistant from './components/VoiceAssistant';
 import ConversationHistory from './components/ConversationHistory';
+import ConversationList from './components/ConversationList';
 import { useVoiceStore } from './stores/voiceStore';
 
 function App() {
@@ -20,8 +20,16 @@ function App() {
           </div>
         )}
 
-        <VoiceAssistant />
-        <ConversationHistory />
+        <div className="content-grid">
+          <div className="left-panel">
+            <VoiceAssistant />
+            <ConversationHistory />
+          </div>
+          
+          <div className="right-panel">
+            <ConversationList />
+          </div>
+        </div>
       </main>
 
       <footer className="footer">

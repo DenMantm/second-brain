@@ -20,6 +20,11 @@ services:
       - MODEL_PATH=/models/piper/en_US-lessac-medium.onnx
       - VOICE_CONFIG_PATH=/models/piper/en_US-lessac-medium.onnx.json
       - LOG_LEVEL=info
+      # Quality Settings
+      - TTS_NOISE_SCALE=0.667
+      - TTS_LENGTH_SCALE=1.0
+      - TTS_SAMPLE_RATE=22050
+      - ENABLE_AUDIO_ENHANCEMENT=false
     restart: unless-stopped
     networks:
       - second-brain-network

@@ -35,13 +35,17 @@ async def lifespan(app: FastAPI):
         logger.info(f"CUDA_VISIBLE_DEVICES: {settings.cuda_visible_devices}")
     
     try:
-        # Initialize TTS engine
+        # Initialize TTS engine with quality settings
         initialize_engine(
             model_path=settings.model_path,
             config_path=settings.voice_config_path,
-            use_cuda=True
+            use_cuda=True,
+            noise_scale=settings.tts_noise_scale,
+            length_scale=settings.tts_length_scale,
+            enable_enhancement=settings.enable_audio_enhancement
         )
         logger.info("TTS engine initialized successfully")
+        logger.info(f"Quality settings: noise_scale={settings.tts_noise_scale}, length_scale={settings.tts_length_scale}, enhancement={settings.enable_audio_enhancement}")
     except Exception as e:
         logger.error(f"Failed to initialize TTS engine: {e}")
         logger.warning("Service will start but TTS functionality will be unavailable")

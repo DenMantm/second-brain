@@ -14,6 +14,9 @@ export default function VoiceAssistant() {
     startListening,
     stopListening,
     initialize,
+    interrupt,
+    stopConversation,
+    startNewConversation,
   } = useVoiceStore();
 
   const [micPermission, setMicPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
@@ -92,12 +95,42 @@ export default function VoiceAssistant() {
           disabled={micPermission === 'denied' || isProcessing}
           className={`primary-button ${isListening ? 'listening' : ''}`}
         >
-          {getButtonText()}isRecording || 
+          {getButtonText()}
         </button>
+
+        {isListening && (
+          <button
+            onClick={startNewConversation}
+            className="new-conversation-button"
+            disabled={isProcessing || isSpeaking}
+          >
+            ➕ New Conversation
+          </button>
+        )}
+
+        {isSpeaking && (
+          <button
+            onClick={interrupt}
+            className="interrupt-button"
+          >
+            ⏸️ Interrupt
+          </button>
+        )}
+
+        {(wakeWordDetected || isRecording || isProcessing || isSpeaking) && (
+          <button
+            onClick={stopConversation}
+            className="stop-button"
+          >
+            🛑 Stop Conversation
+          </button>
+        )}
 
         <p className="hint">
           {!isListening && 'Click to start. Say "Go" to activate.'}
-          {isListening && 'Listening for "Go"...'}
+          {isListening && !wakeWordDetected && 'Listening for "Go"...'}
+          {wakeWordDetected && 'Speak your question...'}
+          {isSpeaking && 'AI speaking - click Interrupt to respond or Stop to end'}
         </p>
       </div>
 

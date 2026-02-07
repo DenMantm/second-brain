@@ -67,23 +67,39 @@ export async function synthesizeText(
 /**
  * Play audio blob
  */
+let currentAudio: HTMLAudioElement | null = null;
+
 export async function playAudio(audioBlob: Blob): Promise<void> {
   return new Promise((resolve, reject) => {
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
+    currentAudio = audio;
     
     audio.onended = () => {
       URL.revokeObjectURL(audioUrl);
+      currentAudio = null;
       resolve();
     };
     
     audio.onerror = (error) => {
       URL.revokeObjectURL(audioUrl);
+      currentAudio = null;
       reject(error);
     };
     
     audio.play().catch(reject);
   });
+}
+
+/**
+ * Stop currently playing audio
+ */
+export function stopAudio(): void {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio = null;
+  }
 }
 
 /**

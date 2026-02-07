@@ -27,35 +27,14 @@ export interface LLMResponse {
 }
 
 /**
- * Generate LLM completion
+ * Generate LLM completion with conversation memory
  */
 export async function generateCompletion(
   userMessage: string,
-  conversationHistory?: Message[],
-  options?: LLMOptions
+  _conversationHistory?: Message[], // Kept for backward compatibility but not used
+  options?: LLMOptions & { sessionId?: string }
 ): Promise<LLMResponse> {
   try {
-    const messages: Message[] = [];
-    
-    // Add system prompt
-    if (options?.systemPrompt) {
-      messages.push({
-        role: 'system',
-        content: options.systemPrompt,
-      });
-    }
-    
-    // Add conversation history
-    if (conversationHistory && conversationHistory.length > 0) {
-      messages.push(...conversationHistory);
-    }
-    
-    // Add current user message
-    messages.push({
-      role: 'user',
-      content: userMessage,
-    });
-    
     console.log(`🤖 Sending to LLM: "${userMessage.substring(0, 50)}${userMessage.length > 50 ? '...' : ''}"`);
     
     const response = await fetch(`${API_BASE_URL}/chat`, {
@@ -64,10 +43,10 @@ export async function generateCompletion(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        messages,
+        message: userMessage,
+        sessionId: options?.sessionId || 'default-session',
         temperature: options?.temperature ?? 0.7,
-        max_tokens: options?.maxTokens ?? 512,
-        model: options?.model,
+        maxTokens: options?.maxTokens ?? 150,
       }),
     });
 

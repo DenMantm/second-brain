@@ -1,7 +1,7 @@
 """Configuration management for TTS service."""
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     model_type: str = "piper"
     model_path: str = "/mnt/c/Interesting/repos/second-brain/models/piper/en_US-lessac-medium.onnx"
     voice_config_path: str = "/mnt/c/Interesting/repos/second-brain/models/piper/en_US-lessac-medium.onnx.json"
+
+    # Audio Quality Settings
+    tts_sample_rate: int = 22050  # Higher = better quality (16000, 22050, 24000)
+    tts_noise_scale: float = 0.667  # Lower = clearer (0.0 - 1.0)
+    tts_length_scale: float = 1.0  # Higher = slower, more precise (0.5 - 2.0)
+    tts_speaker_id: Optional[int] = None  # For multi-speaker models
+    enable_audio_enhancement: bool = True  # Post-processing for quality
 
     # Performance
     max_workers: int = 2

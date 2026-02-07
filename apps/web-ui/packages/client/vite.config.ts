@@ -7,6 +7,22 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      'util': 'util/',
+    },
+  },
+  define: {
+    'process.env': {},
+  },
+  optimizeDeps: {
+    include: [
+      '@tensorflow/tfjs',
+      '@tensorflow/tfjs-core',
+      '@tensorflow-models/speech-commands',
+    ],
+    esbuildOptions: {
+      define: {
+        global: 'globalThis',
+      },
     },
   },
   server: {
@@ -25,5 +41,9 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true,
+    },
   },
 });

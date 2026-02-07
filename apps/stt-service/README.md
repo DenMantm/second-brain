@@ -1,240 +1,222 @@
 # Speech-to-Text (STT) Service
 
+🐳 **This service runs in Docker containers only**
+
 ## Overview
 
-The STT service converts voice audio input into text transcriptions for the Second Brain assistant. This service is optimized for real-time voice interaction with sub-2-second response times, running entirely locally for privacy.
+The STT service converts voice audio input into text transcriptions for the Second Brain assistant. Optimized for real-time voice interaction with low latency, running entirely locally for privacy.
 
 ## Technology Stack
 
-- **Runtime**: Python 3.11
+- **Runtime**: Python 3.11 (in Docker)
 - **Framework**: FastAPI (async HTTP server)
 - **Engine**: [Faster-Whisper](https://github.com/guillaumekln/faster-whisper) (CTranslate2)
-- **Model**: Whisper Medium or Small (depending on GPU memory)
-- **Acceleration**: CUDA 12.1+ (RTX 4060 Ti 16GB)
-- **Quantization**: INT8 for faster inference
+- **Model**: Whisper Base (optimized for CPU)
+- **Acceleration**: CPU optimized with INT8 quantization
 
-## Key Features
+## Quick Start
 
-### Real-time Processing
-- Streaming audio support via WebSocket
-- Chunk-based processing for live transcription
-- Voice Activity Detection (VAD) to reduce processing overhead
-- Optimized for conversational speech
+### Running with Docker (Recommended)
 
-### Language Support
-- Primary: English
-- Extensible: Multi-language detection and transcription
-- Automatic language detection option
+The STT service is managed by docker-compose in the project root:
 
-### Audio Formats
-- **Input**: WAV, MP3, FLAC, WebM
-- **Sample Rate**: 16kHz (optimal for Whisper)
-- **Channels**: Mono (stereo will be converted)
+```bash
+# Start STT service
+docker-compose up -d stt-service
 
-## Architecture
+# View logs
+docker logs second-brain-stt -f
 
+# Check health
+curl http://localhost:3003/ping
+
+# Restart with changes
+docker-compose up -d --build stt-service
 ```
-┌─────────────────────┐
-│  Audio Input        │
-│  (Raspberry Pi /    │
-│   Web Interface)    │
-└──────────┬──────────┘
-           │ WebSocket/HTTP
-           ↓
-┌─────────────────────┐
-│  FastAPI Server     │
-│  (Python)           │
-│  - Audio validation │
-│  - Format conversion│
-│  - Request queuing  │
-└──────────┬──────────┘
-           │
-           ↓
-┌─────────────────────┐
-│  Faster-Whisper     │
-│  (CTranslate2)      │
-│  - VAD filtering    │
-│  - Beam search      │
-│  - GPU inference    │
-└──────────┬──────────┘
-           │
-           ↓
-┌─────────────────────┐
-│  Post-processing    │
-│  - Punctuation      │
-│  - Normalization    │
-│  - Confidence scores│
-└──────────┬──────────┘
-           │
-           ↓
-    Transcribed Text
+
+### Configuration
+
+Edit `docker-compose.yml` in the project root to configure the STT service:
+
+```yaml
+services:
+  stt-service:
+    environment:
+      - MODEL_PATH=/models/whisper
+      - MODEL_SIZE=base              # tiny, base, small, medium, large
+      - DEVICE=cpu                   # cpu or cuda
+      - COMPUTE_TYPE=int8            # int8, int16, float16, float32
+      - LOG_LEVEL=info
 ```
 
 ## API Endpoints
 
-###typescript
+### Health Check
+```bash
+GET /ping
+Response: {"status": "healthy"}
+```
+
+### Transcribe Audio
+```bash
 POST /api/stt/transcribe
 Content-Type: multipart/form-data
-Body: { audio: File }
+Body: audio file (WAV, MP3, FLAC, WebM)
 
 Response: {
-  text: string,
-  language: string,
-  confidence: number,
-  duration: number,
-  processingTime: number
+  "text": "transcribed speech",
+  "confidence": 0.95,
+  "language": "en"
 }
 ```
 
-### WebSocket Endpoint
-
-```typescript
-WS /api/stt/stream
-
-// Client → Server
-{
-  type: "audio_chunk",
-  data: ArrayBuffer,
-  format: "wav" | "webm",
-  sampleRate: 16000
-}
-
-//
-
-# Server → Client
-{
-  type: "partial" | "final",
-  text: string,
-  confidence: number,
-  isFinal: boolean
-}
+### Streaming Transcription (WebSocket)
+```javascript
+ws://localhost:3003/api/stt/stream
+// Send audio chunks, receive real-time transcriptions
 ```
 
-## Configuration
+## Whisper Models
 
-### Model Selection
+The service uses Faster-Whisper models located in `./models/whisper/`:
 
-```python
-# whisper-small: ~500MB VRAM, faster, good for simple queries
-# whisper-medium: ~1.5GB VRAM, better accuracy
-# whisper-large-v3: ~3GB VRAM, best accuracy (if needed)
+**Available Models:**
+- **tiny** - Fastest, lowest accuracy (~1GB RAM)
+- **base** - Good speed/accuracy balance (~1.5GB RAM) ← **Default**
+- **small** - Better accuracy (~2GB RAM)
+- **medium** - High accuracy (~5GB RAM)
+- **large** - Best accuracy, slowest (~10GB RAM)
 
-MODEL_SIZE = "medium"  # Configurable via env
-COMPUTE_TYPE = "int8"  # int8 for speed, float16 for accuracy
-DEVICE = "cuda"
-MODEL_PATH = "/models/whisper"
+**Changing Models:**
+1. Update `MODEL_SIZE` in docker-compose.yml
+2. Restart: `docker-compose up -d --build stt-service`
+3. Model will auto-download on first run
+
+## Quality vs Performance
+
+### Model Comparison
+
+| Model  | Size | Speed  | WER   | Use Case |
+|--------|------|--------|-------|----------|
+| tiny   | 75MB | 10x RT | ~10%  | Testing, low-resource |
+| base   | 142MB| 7x RT  | ~7%   | **Recommended for CPU** |
+| small  | 466MB| 4x RT  | ~5%   | Better accuracy needed |
+| medium | 1.5GB| 2x RT  | ~4%   | GPU available |
+| large  | 3GB  | 1x RT  | ~3%   | Highest accuracy |
+
+*RT = Real-time factor (lower is faster)*
+
+### Compute Types
+
+- **int8** - Fastest, slight accuracy loss ← **Default**
+- **int16** - Balanced
+- **float16** - GPU only, high quality
+- **float32** - Highest quality, slowest
+
+## Development
+
+### Project Structure
+```
+apps/stt-service/
+├── src/
+│   ├── main.py           # FastAPI application
+│   ├── config.py         # Settings and environment
+│   ├── stt_engine.py     # Faster-Whisper wrapper
+│   └── routes.py         # API endpoints
+├── Dockerfile            # Docker build instructions
+├── requirements.txt      # Python dependencies
+├── .env.example         # Example environment variables
+└── README.md            # This file
 ```
 
-### Performance Tuning
+### Local Development (Docker)
 
-```python
-# Beam search width (higher = more accurate, slower)
-BEAM_SIZE = 5
+1. **Edit source code** in `./src/`
+2. **Rebuild container**:
+   ```bash
+   docker-compose up -d --build stt-service
+   ```
+3. **View logs**:
+   ```bash
+   docker logs second-brain-stt -f
+   ```
 
-# VAD threshold (0-1, higher = less sensitive)
-VAD_THRESHOLD = 0.5
+### Testing
 
-# Chunk duration for streaming (seconds)
-CHUNK_DURATION = 2.0
+Test the service locally:
+```bash
+# Health check
+curl http://localhost:3003/ping
 
-# Max concurrent requests
-MAX_WORKERS = 2
+# Transcribe audio file
+curl -X POST http://localhost:3003/api/stt/transcribe \
+  -F "audio=@test.wav"
 ```
 
-## Implementation Plan
+## Troubleshooting
 
-### Phase 1: Basic Transcription ✅ (To Do)
-- [ ] Set up FastAPI server
-- [ ] Integrate Faster-Whisper with CUDA
-- [ ] Implement single-file transcription endpoint
-- [ ] Add audio format validation and conversion
-- [ ] Create health check endpoint
+### Service Shows "Unhealthy"
+```bash
+# Check logs for errors
+docker logs second-brain-stt
 
-### Phase 2: Streaming Support
-- [ ] Implement WebSocket streaming
-- [ ] Add VAD for silence detection
-- [ ] Implement chunked processing
-- [ ] Add partial transcription results
+# Common issues:
+# 1. Model download in progress (wait 2-5 minutes)
+# 2. Insufficient memory (try smaller model)
+# 3. Port conflict (check port 3003)
 
-### Phase 3: Optimization
-- [ ] GPU memory management
-- [ ] Request queuing and batching
-- [ ] Model caching in VRAM
-- [ ] Performance monitoring and logging
-
-### Phase 4: Advanced Features
-- [ ] Multi-language support
-- [ ] Speaker diarization (optional)
-- [ ] Noise reduction preprocessing
-- [ ] Custom vocabulary/hotwords
-
-## Performance Targets
-
-- **Latency**: < 1 second for 5-second audio clip
-- **Throughput**: 2-3 concurrent streams
-- **Accuracy**: > 95% WER (Word Error Rate) for clear speech
-- **GPU Usage**: < 2GB VRAM for model + processing
-json
-{
-  "dependencies": {
-    "fastify": "^4.26.0",
-    "@fastify/multipart": "^8.1.0",
-    "@fastify/websocket": "^10.0.1",
-    "@fastify/cors": "^9.0.1",
-    "@xenova/transformers": "^2.17.0",
-    "whisper-node": "^1.1.0",
-    "node-wav": "^0.0.2",
-    "fluent-ffmpeg": "^2.1.2",
-    "@silvia-odwyer/node-vad": "^3.0.0",
-    "pino": "^8.19.0",
-    "zod": "^3.22.4"
-  },
-  "devDependencies": {
-    "@types/node": "^20.11.16",
-    "@types/fluent-ffmpeg": "^2.1.24",
-    "typescript": "^5.3.3",
-    "tsx": "^4.7.1",
-    "vitest": "^1.2.2"
-  }
-}
+# Restart container
+docker-compose restart stt-service
 ```
 
-## Environment Setup
+### Slow Transcription
+1. Use **base** or **tiny** model (not medium/large)
+2. Ensure `COMPUTE_TYPE=int8`
+3. Verify CPU resources: `docker stats second-brain-stt`
+4. Consider GPU support if available
 
-Runs in WSL2 with CUDA support. See [WSL_SETUP.md](../../docs/WSL_SETUP.md) for installation guide.M nvidia/cuda:12.1.0-runtime-ubuntu22.04
-# Install Python 3.11, CUDA toolkit, and dependencies
-# Optimized for GPU inference
+### Poor Accuracy
+1. Upgrade to **small** or **medium** model
+2. Ensure audio quality is good (16kHz+, low noise)
+3. Check `COMPUTE_TYPE` (int8 vs int16)
+4. Test with different microphones
+
+### Container Won't Start
+```bash
+# Check Docker logs
+docker logs second-brain-stt
+
+# Verify models directory exists
+ls ./models/whisper
+
+# Check port availability
+netstat -ano | findstr :3003
+
+# Force rebuild
+docker-compose up -d --force-recreate --build stt-service
 ```
 
-## Testing Strategy
+## Performance
 
-- **Unit Tests**: Audio processing, model inference
-- **Integration Tests**: End-to-end transcription flow
-- **Performance Tests**: Latency benchmarks, GPU memory profiling
-- **Load Tests**: Concurrent request handling
+**Typical Latency (CPU - base model):**
+- Model loading: ~3-5 seconds (first run)
+- Transcription: ~1-2 seconds per 10 seconds of audio
+- Real-time factor: ~7x (processes 10s audio in ~1.5s)
 
-## Privacy & Security
+**Resource Usage:**
+- RAM: 1.5-2GB (base model)
+- CPU: 60-80% during transcription
+- Storage: ~500MB (model cache)
 
-- ✅ **100% Local Processing**: No external API calls
-- ✅ **No Data Retention**: Audio discarded after transcription
-- ✅ **Secure Communication**: WSS for encrypted streaming
-- ✅ **Input Validation**: File size limits, format checks
+## Audio Requirements
 
-## Monitoring
+**Optimal Input:**
+- Format: WAV, FLAC, or WebM
+- Sample Rate: 16kHz (auto-converted if different)
+- Channels: Mono (stereo will be downmixed)
+- Bit Depth: 16-bit PCM
+- Duration: 1-30 seconds per chunk (streaming)
 
-- Request latency metrics
-- GPU utilization tracking
-- Error rate monitoring
-- Queue depth tracking
+## License
 
-## Related Services
-
-- **TTS Service**: Text-to-Speech output
-- **API Service**: Main orchestration layer
-- **LLM Service**: Natural language understanding
-
----
-
-**Status**: 🚧 Planning Phase  
-**Owner**: Second Brain Team  
-**Last Updated**: February 7, 2026
+MIT License - Part of Second Brain project

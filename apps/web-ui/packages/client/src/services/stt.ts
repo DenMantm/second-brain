@@ -37,7 +37,7 @@ async function convertToWav(audioBlob: Blob): Promise<Blob> {
   
   // Convert float to int16
   for (let i = 0; i < channelData.length; i++) {
-    const s = Math.max(-1, Math.min(1, channelData[i]));
+    const s = Math.max(-1, Math.min(1, channelData[i] ?? 0));
     samples[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
   }
   
@@ -73,7 +73,7 @@ function createWavBuffer(samples: Int16Array, sampleRate: number): ArrayBuffer {
   // Write samples
   const offset = 44;
   for (let i = 0; i < samples.length; i++) {
-    view.setInt16(offset + i * 2, samples[i], true);
+    view.setInt16(offset + i * 2, samples[i] ?? 0, true);
   }
   
   return buffer;
@@ -157,8 +157,9 @@ export async function checkSTTHealth(): Promise<{ status: string; url: string }>
 }
 
 /**
- * Get file extension from MIME type
+ * Get file extension from MIME type (currently unused - kept for future use)
  */
+/*
 function getFileExtension(mimeType: string): string {
   const map: Record<string, string> = {
     'audio/webm': 'webm',
@@ -182,3 +183,4 @@ function getFileExtension(mimeType: string): string {
 
   return 'webm'; // Default
 }
+*/

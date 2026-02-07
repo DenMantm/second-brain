@@ -94,7 +94,7 @@ async def synthesize_text(
         audio_data, sample_rate = engine.synthesize(
             text=request.text,
             speed=request.speed,
-            sample_rate=22050
+            sample_rate=settings.tts_sample_rate
         )
 
         # Convert to bytes in requested format

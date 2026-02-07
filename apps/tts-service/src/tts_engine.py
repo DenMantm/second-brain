@@ -21,7 +21,10 @@ class TTSEngine:
         self,
         model_path: str,
         config_path: str,
-        use_cuda: bool = True
+        use_cuda: bool = True,
+        noise_scale: float = 0.667,
+        length_scale: float = 1.0,
+        enable_enhancement: bool = True
     ):
         """Initialize TTS engine.
         
@@ -29,10 +32,16 @@ class TTSEngine:
             model_path: Path to ONNX model file
             config_path: Path to voice config JSON
             use_cuda: Whether to use CUDA acceleration
+            noise_scale: Noise amount (lower = clearer)
+            length_scale: Speech rate (higher = slower)
+            enable_enhancement: Apply audio enhancement
         """
         self.model_path = Path(model_path)
         self.config_path = Path(config_path)
         self.use_cuda = use_cuda
+        self.noise_scale = noise_scale
+        self.length_scale = length_scale
+        self.enable_enhancement = enable_enhancement
         self.model = None
         self.config = None
         self._initialized = False
@@ -106,9 +115,15 @@ class TTSEngine:
             start_time = time.time()
             logger.info(f"Synthesizing text: {text[:50]}...")
 
-            # Synthesize audio using Piper
+            # Synthesize audio using Piper with quality settings
             audio_chunks = []
-            for audio_bytes in self.model.synthesize_stream_raw(text, length_scale=1.0/speed):
+            synthesis_length_scale = self.length_scale / speed
+            
+            for audio_bytes in self.model.synthesize_stream_raw(
+                text,
+                length_scale=synthesis_length_scale,
+                noise_scale=self.noise_scale
+            ):
                 # Convert bytes to numpy array
                 audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
                 audio_chunks.append(audio_array)
@@ -213,6 +228,61 @@ class TTSEngine:
         buffer.seek(0)
         return buffer.read()
 
+    def _enhance_audio(self, audio_data: np.ndarray) -> np.ndarray:
+        """Apply audio enhancement for better quality.
+        
+        Args:
+            audio_data: Raw audio samples (float32, -1 to 1)
+            
+        Returns:
+            Enhanced audio samples
+        """
+        try:
+            # 1. Normalize volume to optimal level
+            max_val = np.abs(audio_data).max()
+            if max_val > 0:
+                # Target peak at 85% to avoid clipping
+                target_peak = 0.85
+                audio_data = audio_data * (target_peak / max_val)
+            
+            # 2. Apply subtle high-pass filter to reduce rumble
+            # Simple first-order filter (removes very low frequencies)
+            if len(audio_data) > 1:
+                alpha = 0.95  # Filter coefficient
+                filtered = np.zeros_like(audio_data)
+                filtered[0] = audio_data[0]
+                for i in range(1, len(audio_data)):
+                    filtered[i] = alpha * filtered[i-1] + alpha * (audio_data[i] - audio_data[i-1])
+                audio_data = filtered
+            
+            # 3. Soft limiter to prevent clipping
+            threshold = 0.95
+            audio_data = np.clip(audio_data, -threshold, threshold)
+            
+            # 4. Apply gentle compression for more consistent volume
+            # Simple soft-knee compressor
+            compressed = np.copy(audio_data)
+            knee = 0.7
+            ratio = 3.0  # 3:1 compression
+            
+            for i in range(len(compressed)):
+                abs_val = abs(compressed[i])
+                if abs_val > knee:
+                    # Apply compression above knee
+                    excess = abs_val - knee
+                    compressed_excess = excess / ratio
+                    new_val = knee + compressed_excess
+                    compressed[i] = np.sign(compressed[i]) * new_val
+            
+            audio_data = compressed
+            
+            logger.debug("Audio enhancement applied successfully")
+            return audio_data
+            
+        except Exception as e:
+            logger.warning(f"Audio enhancement failed: {e}, using raw audio")
+            return audio_data
+
     def shutdown(self) -> None:
         """Cleanup and shutdown the TTS engine."""
         if self._initialized:
@@ -233,10 +303,24 @@ def get_engine() -> TTSEngine:
     return _engine
 
 
-def initialize_engine(model_path: str, config_path: str, use_cuda: bool = True) -> None:
+def initialize_engine(
+    model_path: str, 
+    config_path: str, 
+    use_cuda: bool = True,
+    noise_scale: float = 0.667,
+    length_scale: float = 1.0,
+    enable_enhancement: bool = True
+) -> None:
     """Initialize global TTS engine."""
     global _engine
-    _engine = TTSEngine(model_path, config_path, use_cuda)
+    _engine = TTSEngine(
+        model_path, 
+        config_path, 
+        use_cuda,
+        noise_scale=noise_scale,
+        length_scale=length_scale,
+        enable_enhancement=enable_enhancement
+    )
     _engine.initialize()
 
 
