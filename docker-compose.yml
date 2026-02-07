@@ -17,14 +17,14 @@ services:
       - ./apps/tts-service/src:/app/src:ro
     environment:
       - ENVIRONMENT=development
-      - MODEL_PATH=/models/piper/en_US-lessac-medium.onnx
-      - VOICE_CONFIG_PATH=/models/piper/en_US-lessac-medium.onnx.json
+      - MODEL_PATH=/models/piper/en_US-ryan-high.onnx
+      - VOICE_CONFIG_PATH=/models/piper/en_US-ryan-high.onnx.json
       - LOG_LEVEL=info
-      # Quality Settings
-      - TTS_NOISE_SCALE=0.667
+      # Quality Settings (optimized for clarity and naturalness)
+      - TTS_NOISE_SCALE=0.4
       - TTS_LENGTH_SCALE=1.0
       - TTS_SAMPLE_RATE=22050
-      - ENABLE_AUDIO_ENHANCEMENT=false
+      - ENABLE_AUDIO_ENHANCEMENT=true
     restart: unless-stopped
     networks:
       - second-brain-network

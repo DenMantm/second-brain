@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useVoiceStore } from '../stores/voiceStore';
 import './VoiceAssistant.css';
+import './ConversationHistory.css';
 
 export default function VoiceAssistant() {
   const {
@@ -11,12 +12,14 @@ export default function VoiceAssistant() {
     wakeWordDetected,
     currentTranscript,
     messages,
+    streamingText,
     startListening,
     stopListening,
     initialize,
     interrupt,
     stopConversation,
     startNewConversation,
+    manualTrigger,
   } = useVoiceStore();
 
   const [micPermission, setMicPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
@@ -54,14 +57,33 @@ export default function VoiceAssistant() {
     return 'Start Voice Assistant';
   };
 
+  const getHint = () => {
+    if (isSpeaking) return 'AI speaking - click Interrupt to respond or Stop to end';
+    if (isProcessing) return 'Processing your request...';
+    if (isRecording) return 'Recording... speak now!';
+    if (wakeWordDetected) return 'Speak your question...';
+    if (isListening) return 'Listening for "Go"...';
+    return 'Click to start. Say "Go" to activate.';
+  };
+
   return (
     <div className="voice-assistant">
       <div className="status-display">
-        <div className={`status-indicator ${isListening ? 'active' : ''}`}>
-          {getStatus()}
-        </div>
+      <div className="visualization">
+        {isListening && (
+          <div className="audio-bars">
+            {[...Array(5)].map((_, i) => (
+              <div
+                key={i}
+                className={`bar ${wakeWordDetected || isProcessing || isSpeaking ? 'active' : ''}`}
+                style={{ animationDelay: `${i * 0.1}s` }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
         
-        {currentTranscript && (
+        {/* {currentTranscript && (
           <div className="transcript">
             <strong>You said:</strong> "{currentTranscript}"
           </div>
@@ -71,16 +93,7 @@ export default function VoiceAssistant() {
           <div className="wake-word-flash">
             ✨ Wake word detected!
           </div>
-        )}
-      </div>
-
-      <div className="messages">
-        {messages.slice(-5).map((msg) => (
-          <div key={msg.id} className={`message ${msg.role}`}>
-            <span className="role">{msg.role === 'user' ? '👤' : '🤖'}</span>
-            <span className="content">{msg.content}</span>
-          </div>
-        ))}
+        )} */}
       </div>
 
       <div className="controls">
@@ -97,6 +110,17 @@ export default function VoiceAssistant() {
         >
           {getButtonText()}
         </button>
+
+        {isListening && !wakeWordDetected && !isRecording && (
+          <button
+            onClick={manualTrigger}
+            className="manual-trigger-button"
+            disabled={isProcessing || isSpeaking}
+            title="Activate without saying 'Go'"
+          >
+            🎤 Manual Trigger
+          </button>
+        )}
 
         {isListening && (
           <button
@@ -127,26 +151,47 @@ export default function VoiceAssistant() {
         )}
 
         <p className="hint">
-          {!isListening && 'Click to start. Say "Go" to activate.'}
-          {isListening && !wakeWordDetected && 'Listening for "Go"...'}
-          {wakeWordDetected && 'Speak your question...'}
-          {isSpeaking && 'AI speaking - click Interrupt to respond or Stop to end'}
+          {getHint()}
         </p>
       </div>
 
-      <div className="visualization">
-        {isListening && (
-          <div className="audio-bars">
-            {[...Array(5)].map((_, i) => (
-              <div
-                key={i}
-                className={`bar ${wakeWordDetected || isProcessing || isSpeaking ? 'active' : ''}`}
-                style={{ animationDelay: `${i * 0.1}s` }}
-              />
+      {/* Conversation History */}
+      {messages.length === 0 ? (
+        <div className="conversation-history empty">
+          <p className="empty-state">No conversations yet. Start by saying "Hey Assistant"!</p>
+        </div>
+      ) : (
+        <div className="conversation-history">
+          <div className="messages">
+            {/* Show streaming text as the first message (newest) */}
+            {streamingText && (
+              <div className="message assistant streaming">
+                <div className="message-header">
+                  <span className="role-badge">🤖 Assistant</span>
+                  <span className="timestamp">Now</span>
+                </div>
+                <div className="message-content">
+                  {streamingText}
+                  <span className="streaming-cursor">▋</span>
+                </div>
+              </div>
+            )}
+            {messages.slice().reverse().map((message) => (
+              <div key={message.id} className={`message ${message.role}`}>
+                <div className="message-header">
+                  <span className="role-badge">
+                    {message.role === 'user' ? '👤 You' : '🤖 Assistant'}
+                  </span>
+                  <span className="timestamp">
+                    {new Date(message.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+                <div className="message-content">{message.content}</div>
+              </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

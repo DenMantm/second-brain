@@ -14,15 +14,8 @@ export default function ConversationHistory() {
 
   return (
     <div className="conversation-history">
-      <div className="history-header">
-        <h2>Conversation History</h2>
-        <button onClick={clearHistory} className="clear-button">
-          Clear History
-        </button>
-      </div>
-
       <div className="messages">
-        {messages.map((message) => (
+        {messages.slice().reverse().map((message) => (
           <div key={message.id} className={`message ${message.role}`}>
             <div className="message-header">
               <span className="role-badge">

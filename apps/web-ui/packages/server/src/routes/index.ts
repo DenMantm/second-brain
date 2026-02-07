@@ -4,6 +4,7 @@ import { sttRoutes } from './stt';
 import { chatRoutes } from './chat';
 import { llmRoutes } from './llm';
 import { conversationRoutes } from './conversations';
+import { registerModelsRoutes } from './models';
 
 export function registerRoutes(fastify: FastifyInstance) {
   // Register route groups
@@ -12,4 +13,5 @@ export function registerRoutes(fastify: FastifyInstance) {
   fastify.register(chatRoutes, { prefix: '/api/chat' });
   fastify.register(llmRoutes, { prefix: '/api/llm' });
   fastify.register(conversationRoutes, { prefix: '/api' });
+  registerModelsRoutes(fastify);
 }

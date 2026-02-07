@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import { getWakeWordDetection } from '../services/wakeWord';
 import { getAudioRecorder } from '../services/audioRecorder';
 import { transcribeAudio } from '../services/stt';
-import { synthesizeText, playAudio, stopAudio } from '../services/tts';
-import { generateCompletion } from '../services/llm';
+import { stopAudio } from '../services/tts';
+import { generateCompletionStream } from '../services/llm';
+import { StreamingOrchestrator } from '../services/streamingOrchestrator';
 import { 
   createNewConversation, 
   fetchConversations, 
@@ -11,6 +12,48 @@ import {
   deleteConversation as deleteConversationAPI,
   type ConversationMetadata 
 } from '../services/conversations';
+
+// Global streaming orchestrator instance
+let streamingOrchestrator: StreamingOrchestrator | null = null;
+
+function getStreamingOrchestrator(): StreamingOrchestrator {
+  if (!streamingOrchestrator) {
+    streamingOrchestrator = new StreamingOrchestrator({
+      onSentenceDetected: (sentence, index) => {
+        console.log(`📝 Sentence ${index}: "${sentence.substring(0, 50)}..."`);
+      },
+      onTTSStart: async (_sentence, index) => {
+        console.log(`🎤 TTS started for sentence ${index}`);
+      },
+      onTTSComplete: (_sentence, index) => {
+        console.log(`✅ TTS complete for sentence ${index}`);
+      },
+      onTTSError: (_sentence, index, error) => {
+        console.error(`❌ TTS error for sentence ${index}:`, error);
+        // Don't set error state for individual sentence failures
+        // The orchestrator will retry automatically
+      },
+      onComplete: async () => {
+        console.log('🎵 All audio playback complete');
+        // Update store state when playback finishes
+        const store = useVoiceStore.getState();
+        store.setSpeaking(false);
+        
+        // Restart wake word detection after AI finishes speaking
+        const wakeWord = getWakeWordDetection();
+        if (wakeWord.isInitialized() && store.isListening) {
+          await wakeWord.start();
+          console.log('🔊 Wake word detection resumed');
+        }
+        
+        // Automatically start listening again for follow-up conversation
+        console.log('🎙️ Ready for follow-up - listening...');
+        store.startRecording();
+      }
+    });
+  }
+  return streamingOrchestrator;
+}
 
 export interface Message {
   id: string;
@@ -31,22 +74,27 @@ interface VoiceState {
   error: string | null;
   messages: Message[];
   currentTranscript: string;
+  streamingText: string;
   currentConversationId: string | null;
   conversations: ConversationMetadata[];
 
   // Actions
   initialize: () => Promise<void>;
+  reinitializeWakeWord: (newWakeWord: string) => Promise<void>;
   startListening: () => Promise<void>;
   stopListening: () => Promise<void>;
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
   interrupt: () => Promise<void>;
   stopConversation: () => Promise<void>;
+  manualTrigger: () => Promise<void>;
   setWakeWordDetected: (detected: boolean) => void;
   setWakeWordEnabled: (enabled: boolean) => void;
   setProcessing: (processing: boolean) => void;
   setSpeaking: (speaking: boolean) => void;
   addMessage: (role: 'user' | 'assistant', content: string) => void;
+  updateStreamingText: (text: string) => void;
+  clearStreamingText: () => void;
   clearHistory: () => void;
   setError: (error: string | null) => void;
   
@@ -69,6 +117,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   error: null,
   messages: [],
   currentTranscript: '',
+  streamingText: '',
   currentConversationId: null,
   conversations: [],
 
@@ -81,14 +130,30 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       // Initialize TensorFlow.js wake word detection
       const wakeWord = getWakeWordDetection();
       
-      // Use 'go' as wake word (from 18-word vocabulary)
+      // Get wake word from settings (fallback to 'go')
+      const settingsStore = typeof window !== 'undefined' ? (window as any).__settingsStore : null;
+      const selectedWakeWord = settingsStore?.getState?.().selectedWakeWord || 'go';
+      
+      // Use wake word from settings (from 18-word vocabulary)
       // Available: zero, one, two, three, four, five, six, seven, eight, nine,
       //            up, down, left, right, go, stop, yes, no
-      await wakeWord.initialize(['go'], 0.75);
+      await wakeWord.initialize([selectedWakeWord], 0.75);
+      
+      console.log(`✨ Initialized wake word: "${selectedWakeWord}"`);
       
       // Set up wake word detection callback
       wakeWord.onDetected(async () => {
-        const { isSpeaking, isProcessing } = get();
+        const { isSpeaking, isProcessing, isRecording } = get();
+        
+        // Check if already recording - avoid duplicate recording attempts
+        if (isRecording) {
+          console.log('⚠️ Wake word detected but already recording, ignoring');
+          return;
+        }
+        
+        // Stop wake word detection immediately to prevent it staying active during conversation
+        await wakeWord.stop();
+        console.log('🔇 Wake word detection stopped - starting conversation');
         
         // If AI is speaking or processing, interrupt it
         if (isSpeaking || isProcessing) {
@@ -100,7 +165,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         }
         
         set({ wakeWordDetected: true });
-        console.log('✨ Wake word "Go" detected!');
+        console.log(`✨ Wake word "${selectedWakeWord}" detected!`);
         
         // Start recording immediately
         try {
@@ -120,16 +185,76 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     }
   },
 
+  reinitializeWakeWord: async (newWakeWord: string) => {
+    try {
+      console.log(`🔄 Reinitializing wake word to "${newWakeWord}"...`);
+      
+      const { isListening, isSpeaking, isProcessing } = get();
+      
+      // Don't reinitialize if AI is speaking or processing - avoid interruptions
+      if (isSpeaking || isProcessing) {
+        console.warn('⚠️ Deferring wake word change - AI is currently active');
+        // The wake word will be picked up from settings on next initialize/startListening
+        return;
+      }
+      
+      const wakeWord = getWakeWordDetection();
+      
+      // Stop current wake word detection
+      if (isListening) {
+        await wakeWord.stop();
+      }
+      
+      // Re-initialize with new wake word
+      await wakeWord.initialize([newWakeWord], 0.75);
+      
+      // Set up wake word detection callback with new wake word
+      wakeWord.onDetected(async () => {
+        const { isSpeaking, isProcessing } = get();
+        
+        if (isSpeaking || isProcessing) {
+          console.log('🛑 Interrupting AI to listen to new input...');
+          await get().interrupt();
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        set({ wakeWordDetected: true });
+        console.log(`✨ Wake word "${newWakeWord}" detected!`);
+        
+        try {
+          await get().startRecording();
+        } catch (error) {
+          console.error('Failed to start recording after wake word:', error);
+          set({ wakeWordDetected: false });
+        }
+      });
+      
+      // Resume listening if it was active
+      if (isListening) {
+        await wakeWord.start();
+        console.log(`👂 Resumed listening for wake word "${newWakeWord}"`);
+      }
+      
+      console.log(`✅ Wake word changed to "${newWakeWord}"`);
+    } catch (error) {
+      console.error('Failed to reinitialize wake word:', error);
+      set({ error: 'Failed to change wake word' });
+    }
+  },
+
   startListening: async () => {
     try {
       const { wakeWordEnabled } = get();
       
       if (wakeWordEnabled) {
         const wakeWord = getWakeWordDetection();
+        const settingsStore = typeof window !== 'undefined' ? (window as any).__settingsStore : null;
+        const selectedWakeWord = settingsStore?.getState?.().selectedWakeWord || 'go';
+        
         // Only start if initialized
         if (wakeWord.isInitialized()) {
           await wakeWord.start();
-          console.log('👂 Started listening for wake word "Go"...');
+          console.log(`👂 Started listening for wake word "${selectedWakeWord}"...`);
         } else {
           console.warn('⚠️ Wake word detection not initialized, skipping start');
         }
@@ -216,45 +341,84 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         await get().refreshConversations();
       }
       
-      // Get conversation history for context (last 10 messages)
-      const history = get().messages
-        .slice(-10)
-        .map(msg => ({
-          role: msg.role,
-          content: msg.content,
-        }));
-      
-      // Generate LLM response
-      const llmResult = await generateCompletion(
-        result.text,
-        history,
-        {
-          sessionId: conversationId,
-          systemPrompt: 'You are a helpful AI assistant. Keep responses concise and natural for voice conversation.',
-          temperature: 0.7,
-          maxTokens: 150,
-        }
-      );
-      
-      const responseText = llmResult.text;
-      
-      // Add user and assistant messages to history
+      // Add user message to history
       get().addMessage('user', result.text);
-      get().addMessage('assistant', responseText);
       
-      // Synthesize speech
-      const audioResponse = await synthesizeText(responseText);
+      // Use streaming orchestrator for LLM -> TTS -> Audio pipeline
+      const orchestrator = getStreamingOrchestrator();
+      let fullResponseText = '';
       
-      set({ isProcessing: false, isSpeaking: true });
+      // Create AbortController for interruption support
+      const abortController = new AbortController();
       
-      // Play audio
-      await playAudio(audioResponse);
+      // Store abort controller for interrupt function
+      (get() as any)._currentAbortController = abortController;
       
-      set({ isSpeaking: false });
+      try {
+        // Stream LLM response chunks
+        const stream = generateCompletionStream(
+          result.text,
+          {
+            sessionId: conversationId,
+            temperature: 0.7,
+            maxTokens: 2048, // Allow longer responses for natural conversation
+            signal: abortController.signal,
+          }
+        );
+        
+        set({ isProcessing: false, isSpeaking: true });
+        
+        // Stop wake word detection IMMEDIATELY to prevent false triggers during TTS
+        const wakeWord = getWakeWordDetection();
+        if (wakeWord.isInitialized()) {
+          await wakeWord.stop();
+          console.log('🔇 Wake word detection stopped - starting AI response');
+        }
+        
+        // Clear any previous streaming text
+        get().clearStreamingText();
+        
+        // Process each chunk through the orchestrator
+        for await (const chunk of stream) {
+          if (abortController.signal.aborted) {
+            console.log('🛑 LLM stream aborted');
+            break;
+          }
+          
+          fullResponseText += chunk;
+          // Update streaming text to show partial response
+          get().updateStreamingText(fullResponseText);
+          await orchestrator.processTextChunk(chunk);
+        }
+        
+        // Flush any remaining buffered text
+        if (!abortController.signal.aborted) {
+          await orchestrator.flush();
+        }
+        
+        // Clear streaming text and add final message to history
+        get().clearStreamingText();
+        if (fullResponseText.trim()) {
+          get().addMessage('assistant', fullResponseText);
+        }
+        
+        // Wait for all audio to finish playing
+        // The orchestrator handles playback internally
+        // We'll detect completion via the onComplete callback
+        
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log('🛑 Streaming interrupted by user');
+        } else {
+          throw error;
+        }
+      } finally {
+        // Clean up abort controller reference
+        delete (get() as any)._currentAbortController;
+      }
       
-      // Automatically start listening again for follow-up conversation
-      console.log('🎙️ Ready for follow-up - listening...');
-      get().startRecording();
+      // Note: isSpeaking will be set to false and listening will resume
+      // automatically via the onComplete callback after all audio finishes playing
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Recording failed';
@@ -262,6 +426,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         error: errorMessage, 
         isRecording: false, 
         isProcessing: false,
+        isSpeaking: false,
         wakeWordDetected: false,
       });
       console.error('Recording error:', error);
@@ -286,11 +451,25 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     try {
       console.log('⏸️ Interrupting AI - staying in conversation...');
       
-      // Stop audio playback
+      // Interrupt the streaming orchestrator (stops TTS requests + clears audio queue)
+      const orchestrator = getStreamingOrchestrator();
+      orchestrator.interrupt();
+      
+      // Abort LLM stream if active
+      const abortController = (get() as any)._currentAbortController;
+      if (abortController) {
+        abortController.abort();
+      }
+      
+      // Stop any legacy audio playback (fallback)
       stopAudio();
       
-      // Update state to stop speaking
+      // Clear streaming text and update state to stop speaking
+      get().clearStreamingText();
       set({ isSpeaking: false });
+      
+      // Don't restart wake word detection here - it will be restarted after recording completes
+      // Wake word detection should remain stopped during user recording
       
       // If not recording, start recording to let user continue speaking
       if (!get().isRecording && !get().isProcessing) {
@@ -343,6 +522,33 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     }
   },
 
+  manualTrigger: async () => {
+    try {
+      const { isSpeaking, isProcessing, isListening } = get();
+      
+      if (!isListening) {
+        console.warn('Cannot manually trigger - not listening');
+        return;
+      }
+      
+      // If AI is speaking or processing, interrupt it
+      if (isSpeaking || isProcessing) {
+        console.log('🛑 Interrupting AI for manual trigger...');
+        await get().interrupt();
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      set({ wakeWordDetected: true });
+      console.log('🎤 Manual trigger activated');
+      
+      // Start recording immediately
+      await get().startRecording();
+    } catch (error) {
+      console.error('Manual trigger failed:', error);
+      set({ wakeWordDetected: false });
+    }
+  },
+
   setWakeWordDetected: (detected: boolean) => {
     set({ wakeWordDetected: detected });
   },
@@ -367,6 +573,14 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       timestamp: Date.now(),
     };
     set((state) => ({ messages: [...state.messages, message] }));
+  },
+
+  updateStreamingText: (text) => {
+    set({ streamingText: text });
+  },
+
+  clearStreamingText: () => {
+    set({ streamingText: '' });
   },
 
   clearHistory: () => {

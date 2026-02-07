@@ -71,12 +71,18 @@ async function start() {
 }
 
 // Graceful shutdown handlers
-const signals = ['SIGINT', 'SIGTERM'] as const;
+const signals = ['SIGINT', 'SIGTERM', 'SIGUSR2'] as const;
 signals.forEach((signal) => {
   process.on(signal, async () => {
     fastify.log.info(`Received ${signal}, closing server gracefully...`);
-    await fastify.close();
-    process.exit(0);
+    try {
+      await fastify.close();
+      fastify.log.info('Server closed successfully');
+      process.exit(0);
+    } catch (err) {
+      fastify.log.error('Error during shutdown:', err);
+      process.exit(1);
+    }
   });
 });
 

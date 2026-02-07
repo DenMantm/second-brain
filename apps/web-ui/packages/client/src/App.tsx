@@ -1,16 +1,25 @@
 import VoiceAssistant from './components/VoiceAssistant';
-import ConversationHistory from './components/ConversationHistory';
 import ConversationList from './components/ConversationList';
+import Settings from './components/Settings';
 import { useVoiceStore } from './stores/voiceStore';
+import { useSettingsStore } from './stores/settingsStore';
 
 function App() {
   const { isInitialized, error } = useVoiceStore();
+  const { openSettings } = useSettingsStore();
 
   return (
     <div className="app">
       <header className="header">
-        <h1>Second Brain</h1>
-        <p className="subtitle">Privacy-First Voice Assistant</p>
+        <div className="header-content">
+          <div>
+            <h1>Second Brain</h1>
+            <p className="subtitle">Voice Assistant</p>
+          </div>
+          <button onClick={openSettings} className="settings-button" title="Settings">
+            ⚙️
+          </button>
+        </div>
       </header>
 
       <main className="main">
@@ -20,16 +29,10 @@ function App() {
           </div>
         )}
 
-        <div className="content-grid">
-          <div className="left-panel">
+
             <VoiceAssistant />
-            <ConversationHistory />
-          </div>
-          
-          <div className="right-panel">
-            <ConversationList />
-          </div>
-        </div>
+
+        <ConversationList />
       </main>
 
       <footer className="footer">
@@ -41,6 +44,8 @@ function App() {
         </p>
         <p className="info">All processing runs locally - your conversations stay private</p>
       </footer>
+
+      <Settings />
     </div>
   );
 }

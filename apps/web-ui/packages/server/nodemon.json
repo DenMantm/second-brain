@@ -1,0 +1,9 @@
+{
+  "watch": ["src"],
+  "ext": "ts,js,json",
+  "ignore": ["src/**/*.test.ts", "dist", "node_modules"],
+  "exec": "tsx src/main.ts",
+  "signal": "SIGUSR2",
+  "restartable": "rs",
+  "delay": 500
+}

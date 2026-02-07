@@ -130,17 +130,23 @@ export class WakeWordDetection {
    */
   async stop(): Promise<void> {
     if (!this.recognizer) {
+      console.log('⚠️ Wake word stop called but recognizer is null');
       return;
     }
 
     try {
-      if (this.isListening) {
-        this.recognizer.stopListening();
-        this.isListening = false;
-        console.log('⏸️ Wake word detection stopped');
-      }
+      console.log(`🔇 Stopping wake word detection (isListening: ${this.isListening})...`);
+      
+      // Always call stopListening() regardless of isListening flag
+      // The flag might be out of sync with actual recognizer state
+      this.recognizer.stopListening();
+      this.isListening = false;
+      
+      console.log('⏸️ Wake word detection stopped');
     } catch (error) {
       console.error('Failed to stop wake word detection:', error);
+      // Still set flag to false even if error occurred
+      this.isListening = false;
       throw error;
     }
   }
