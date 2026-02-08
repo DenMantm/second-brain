@@ -19,7 +19,11 @@ export default function ConversationHistory() {
           <div key={message.id} className={`message ${message.role}`}>
             <div className="message-header">
               <span className="role-badge">
-                {message.role === 'user' ? '👤 You' : '🤖 Assistant'}
+                {message.role === 'user'
+                  ? '👤 You'
+                  : message.role === 'assistant'
+                    ? '🤖 Assistant'
+                    : 'ℹ️ System'}
               </span>
               <span className="timestamp">
                 {new Date(message.timestamp).toLocaleTimeString()}

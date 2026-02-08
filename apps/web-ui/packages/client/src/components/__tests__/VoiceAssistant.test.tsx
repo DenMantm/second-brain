@@ -144,6 +144,20 @@ describe('VoiceAssistant Integration Tests', () => {
       expect(screen.getByText('🤖 Assistant')).toBeInTheDocument();
     });
 
+    it('should display system messages', () => {
+      vi.mocked(useVoiceStore).mockReturnValue({
+        ...defaultState,
+        messages: [
+          { role: 'system', content: 'Tool call: search_youtube', timestamp: new Date() },
+        ],
+      });
+
+      render(<VoiceAssistant />);
+
+      expect(screen.getByText('Tool call: search_youtube')).toBeInTheDocument();
+      expect(screen.getByText('ℹ️ System')).toBeInTheDocument();
+    });
+
     it('should display streaming text', () => {
       vi.mocked(useVoiceStore).mockReturnValue({
         ...defaultState,

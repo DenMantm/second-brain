@@ -26,6 +26,10 @@ export interface LLMResponse {
   };
 }
 
+export type LLMStreamChunk =
+  | { type: 'text'; content: string }
+  | { type: 'tool_call'; data: { name: string; args: unknown; result: unknown } };
+
 /**
  * Generate LLM completion with conversation memory
  */
@@ -73,7 +77,7 @@ export async function generateCompletion(
 export async function* generateCompletionStream(
   userMessage: string,
   options?: LLMOptions & { sessionId?: string; signal?: AbortSignal }
-): AsyncGenerator<string, void, unknown> {
+): AsyncGenerator<LLMStreamChunk, void, unknown> {
   try {
     console.log(`🤖 Streaming from LLM: "${userMessage.substring(0, 50)}${userMessage.length > 50 ? '...' : ''}"`);
     
@@ -131,7 +135,11 @@ export async function* generateCompletionStream(
             try {
               const data = JSON.parse(dataStr);
               if (data.chunk) {
-                yield data.chunk;
+                if (typeof data.chunk === 'string') {
+                  yield { type: 'text', content: data.chunk };
+                } else if (data.chunk.type === 'tool_call') {
+                  yield { type: 'tool_call', data: data.chunk.data };
+                }
               } else if (data.error) {
                 throw new Error(data.error);
               }

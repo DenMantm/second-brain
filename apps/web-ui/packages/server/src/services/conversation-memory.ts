@@ -40,7 +40,7 @@ function getSession(sessionId: string, options?: ConversationOptions): SessionDa
   const baseLlm = new ChatOpenAI({
     apiKey: 'sk-dummy-key-for-local-llm', // LM Studio doesn't validate API key
     modelName: 'openai/gpt-oss-20b', // GPT OSS 20B model
-    temperature: options?.temperature ?? 0.7,
+    temperature: options?.temperature ?? 0.2,
     maxTokens: options?.maxTokens ?? 2048,
     configuration: {
       baseURL: config.llmServiceUrl,
@@ -60,6 +60,10 @@ You can search YouTube, play videos, and control playback using these tools:
 - search_youtube: Search for videos (e.g., "search YouTube for cooking recipes")
 - play_youtube_video: Play a video by index from search results (e.g., "play the first one")
 - control_youtube_player: Control playback (play, pause, seek, volume)
+
+IMPORTANT: Only call tools when the user explicitly asks to search YouTube, play a YouTube video, or control YouTube playback. Otherwise, respond normally without calling any tool.
+If the user does not explicitly mention YouTube or a playback control (play, pause, seek, volume), do NOT call any tool.
+If you are unsure whether the user wants YouTube actions, ask a clarifying question instead of calling a tool.
 
 When user asks to search YouTube:
 1. Use search_youtube with their query

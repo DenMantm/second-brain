@@ -35,7 +35,11 @@ export default function VoiceAssistant() {
           {[...messages].reverse().map((msg) => (
             <div key={msg.id} className={`message ${msg.role}`}>
               <div className="message-role">
-                {msg.role === 'user' ? '👤 You' : '🤖 Assistant'}
+                {msg.role === 'user'
+                  ? '👤 You'
+                  : msg.role === 'assistant'
+                    ? '🤖 Assistant'
+                    : 'ℹ️ System'}
               </div>
               <div className="message-content">{msg.content}</div>
             </div>

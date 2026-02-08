@@ -49,8 +49,8 @@ vi.mock('../../services/tts', () => ({
 }));
 
 vi.mock('../../services/llm', () => ({
-  generateCompletionStream: vi.fn().mockResolvedValue({
-    text: 'Test response',
+  generateCompletionStream: vi.fn().mockImplementation(async function* () {
+    yield { type: 'text', content: 'Test response' };
   }),
 }));
 
@@ -66,13 +66,17 @@ vi.mock('../../services/conversations', () => ({
 }));
 
 vi.mock('../../services/streamingOrchestrator', () => ({
-  StreamingOrchestrator: vi.fn().mockImplementation(() => ({
+  StreamingOrchestrator: vi.fn().mockImplementation((options) => ({
     onSentenceDetected: vi.fn(),
     onTTSStart: vi.fn(),
     onTTSComplete: vi.fn(),
     onTTSError: vi.fn(),
     onComplete: vi.fn(),
     processTextStream: vi.fn(),
+    processTextChunk: vi.fn(async () => {}),
+    flush: vi.fn(async () => {
+      await options?.onComplete?.();
+    }),
   })),
 }));
 
@@ -249,6 +253,47 @@ describe('VoiceStore - Continuous Conversation', () => {
       role: 'assistant',
       content: 'Hi!',
     });
+
+    store.addMessage('system', 'Tool call: search_youtube');
+    state = useVoiceStore.getState();
+    expect(state.messages).toHaveLength(3);
+    expect(state.messages[2]).toMatchObject({
+      role: 'system',
+      content: 'Tool call: search_youtube',
+    });
+  });
+
+  it('should clear speaking state after tool call in stream', async () => {
+    const store = useVoiceStore.getState();
+    const { generateCompletionStream } = await import('../../services/llm');
+
+    vi.mocked(generateCompletionStream).mockImplementationOnce(async function* () {
+      yield {
+        type: 'tool_call',
+        data: {
+          name: 'search_youtube',
+          args: { query: 'scarecrow' },
+          result: { success: true, message: 'Found 2 videos for "scarecrow"' },
+        },
+      };
+      yield { type: 'text', content: 'Here are some results.' };
+    });
+
+    const originalStartRecording = store.startRecording;
+    let callCount = 0;
+    (store as any).startRecording = async () => {
+      callCount += 1;
+      if (callCount > 1) {
+        return;
+      }
+      return originalStartRecording();
+    };
+
+    await store.startRecording();
+
+    const state = useVoiceStore.getState();
+    expect(state.isSpeaking).toBe(false);
+    expect(state.messages.some(m => m.role === 'system')).toBe(true);
   });
 
   it('should handle wake word detection state', () => {

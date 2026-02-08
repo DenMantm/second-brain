@@ -138,6 +138,11 @@ export class WakeWordDetection {
       return;
     }
 
+    if (!this.isListening) {
+      console.log('⚠️ Wake word stop called but not listening');
+      return;
+    }
+
     try {
       console.log(`🔇 Stopping wake word detection (isListening: ${this.isListening})...`);
       
@@ -148,9 +153,16 @@ export class WakeWordDetection {
       
       console.log('⏸️ Wake word detection stopped');
     } catch (error) {
-      console.error('Failed to stop wake word detection:', error);
+      const message = error instanceof Error ? error.message : '';
       // Still set flag to false even if error occurred
       this.isListening = false;
+
+      if (message.includes('not ongoing')) {
+        console.warn('Wake word stop ignored: not currently listening');
+        return;
+      }
+
+      console.error('Failed to stop wake word detection:', error);
       throw error;
     }
   }

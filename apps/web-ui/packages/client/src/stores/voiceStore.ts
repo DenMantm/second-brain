@@ -69,7 +69,7 @@ function getStreamingOrchestrator(): StreamingOrchestrator {
 
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
 }
@@ -104,7 +104,7 @@ interface VoiceState {
   setWakeWordEnabled: (enabled: boolean) => void;
   setProcessing: (processing: boolean) => void;
   setSpeaking: (speaking: boolean) => void;
-  addMessage: (role: 'user' | 'assistant', content: string) => void;
+  addMessage: (role: 'user' | 'assistant' | 'system', content: string) => void;
   updateStreamingText: (text: string) => void;
   clearStreamingText: () => void;
   clearHistory: () => void;
@@ -366,6 +366,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       // Use streaming orchestrator for LLM -> TTS -> Audio pipeline
       const orchestrator = getStreamingOrchestrator();
       let fullResponseText = '';
+      let receivedToolCall = false;
+      let receivedTextChunk = false;
       
       // Create AbortController for interruption support
       const abortController = new AbortController();
@@ -379,7 +381,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
           result.text,
           {
             sessionId: conversationId,
-            temperature: 0.7,
+            temperature: 0.2,
             maxTokens: 2048, // Allow longer responses for natural conversation
             signal: abortController.signal,
           }
@@ -403,16 +405,45 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
             console.log('🛑 LLM stream aborted');
             break;
           }
-          
-          fullResponseText += chunk;
+
+          if (chunk.type === 'tool_call') {
+            console.log('🧰 Tool call received:', chunk.data);
+            const toolName = chunk.data?.name ?? 'tool';
+            const result = chunk.data?.result as { success?: boolean; message?: string; error?: string } | undefined;
+            let systemMessage = `Tool call: ${toolName}`;
+            if (result?.success && result.message) {
+              systemMessage = `${systemMessage} - ${result.message}`;
+            } else if (result && result.success === false && result.error) {
+              systemMessage = `${systemMessage} - Error: ${result.error}`;
+            }
+            get().addMessage('system', systemMessage);
+            receivedToolCall = true;
+            await orchestrator.processTextChunk(systemMessage);
+            continue;
+          }
+
+          receivedTextChunk = true;
+          fullResponseText += chunk.content;
           // Update streaming text to show partial response
           get().updateStreamingText(fullResponseText);
-          await orchestrator.processTextChunk(chunk);
+          await orchestrator.processTextChunk(chunk.content);
         }
         
         // Flush any remaining buffered text
         if (!abortController.signal.aborted) {
           await orchestrator.flush();
+        }
+
+        if (!abortController.signal.aborted && receivedToolCall && !receivedTextChunk) {
+          set({ isSpeaking: false });
+          try {
+            await get().startRecording();
+          } catch (error) {
+            const wakeWord = getWakeWordDetection();
+            if (wakeWord.isInitialized() && get().wakeWordEnabled && !wakeWord.getIsListening()) {
+              await wakeWord.start();
+            }
+          }
         }
         
         // Clear streaming text and add final message to history
@@ -584,7 +615,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     set({ isSpeaking: speaking });
   },
 
-  addMessage: (role: 'user' | 'assistant', content: string) => {
+  addMessage: (role: 'user' | 'assistant' | 'system', content: string) => {
     const message: Message = {
       id: crypto.randomUUID(),
       role,

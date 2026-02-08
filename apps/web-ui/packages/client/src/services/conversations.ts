@@ -12,7 +12,7 @@ export interface ConversationMetadata {
 }
 
 export interface ConversationMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
 }
