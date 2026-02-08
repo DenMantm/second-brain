@@ -50,7 +50,13 @@ body {
   align-items: flex-start;
 }
 
-.settings-button {
+.header-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.settings-button,
+.conversations-button {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   color: var(--color-text-muted);
@@ -67,6 +73,14 @@ body {
   border-color: var(--color-primary);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(100, 108, 255, 0.3);
+}
+
+.conversations-button:hover {
+  background: rgba(99, 102, 241, 0.9);
+  color: white;
+  border-color: rgba(99, 102, 241, 0.9);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
 .header h1 {

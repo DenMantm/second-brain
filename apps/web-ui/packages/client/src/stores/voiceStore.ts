@@ -12,6 +12,7 @@ import {
   deleteConversation as deleteConversationAPI,
   type ConversationMetadata 
 } from '../services/conversations';
+import { useYouTubeStore, type YouTubeSearchResult } from './youtubeStore';
 
 // Expose wake word service for E2E testing
 // This allows E2E tests to verify the internal state of wake word detection
@@ -409,16 +410,76 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
           if (chunk.type === 'tool_call') {
             console.log('🧰 Tool call received:', chunk.data);
             const toolName = chunk.data?.name ?? 'tool';
-            const result = chunk.data?.result as { success?: boolean; message?: string; error?: string } | undefined;
+            const toolArgs = (chunk.data as any)?.args;
+            const toolResult = chunk.data?.result;
+            
+            // Parse result if it's a JSON string
+            let result: any;
+            if (typeof toolResult === 'string') {
+              try {
+                result = JSON.parse(toolResult);
+              } catch {
+                result = { success: false, error: 'Invalid tool response' };
+              }
+            } else {
+              result = toolResult;
+            }
+            
+            // Handle YouTube tool calls
+            if (toolName === 'search_youtube' && result?.success && result.results) {
+              const youtubeStore = useYouTubeStore.getState();
+              const searchResults: YouTubeSearchResult[] = result.results.map((video: any) => ({
+                videoId: video.videoId || '',
+                title: video.title || '',
+                channelTitle: video.channel || '',
+                thumbnailUrl: video.thumbnail || '',
+                viewCount: video.views,
+                duration: video.duration,
+              }));
+              const query = result.query || toolArgs?.query || 'YouTube';
+              youtubeStore.showSearch(query, searchResults);
+            } else if (toolName === 'play_youtube_video' && result?.success && result.videoId) {
+              const youtubeStore = useYouTubeStore.getState();
+              youtubeStore.playVideo(result.videoId);
+            } else if (toolName === 'control_youtube_player' && result?.success) {
+              const youtubeStore = useYouTubeStore.getState();
+              const action = toolArgs?.action;
+              const value = toolArgs?.value;
+              
+              if (action === 'play') {
+                const player = youtubeStore.player;
+                if (player) player.playVideo();
+              } else if (action === 'pause') {
+                const player = youtubeStore.player;
+                if (player) player.pauseVideo();
+              } else if (action === 'volume' && typeof value === 'number') {
+                youtubeStore.setVolume(value);
+              } else if (action === 'seek' && typeof value === 'number') {
+                const player = youtubeStore.player;
+                if (player) player.seekTo(value, true);
+              }
+            }
+            
+            // Build system message for conversation history
             let systemMessage = `Tool call: ${toolName}`;
+            let speechMessage = '';
+            
             if (result?.success && result.message) {
               systemMessage = `${systemMessage} - ${result.message}`;
+              speechMessage = result.message;
             } else if (result && result.success === false && result.error) {
               systemMessage = `${systemMessage} - Error: ${result.error}`;
+              speechMessage = result.error;
             }
+            
+            // Add to conversation history
             get().addMessage('system', systemMessage);
             receivedToolCall = true;
-            await orchestrator.processTextChunk(systemMessage);
+            
+            // Only synthesize the actual message, not the tool call announcement
+            if (speechMessage) {
+              await orchestrator.processTextChunk(speechMessage);
+            }
             continue;
           }
 

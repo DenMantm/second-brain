@@ -1,12 +1,15 @@
 import VoiceAssistant from './components/VoiceAssistant';
-import ConversationList from './components/ConversationList';
 import Settings from './components/Settings';
+import { YouTubeModal } from './components/YouTubeModal';
+import { ConversationsModal } from './components/ConversationsModal';
 import { useVoiceStore } from './stores/voiceStore';
 import { useSettingsStore } from './stores/settingsStore';
+import { useConversationsStore } from './stores/conversationsStore';
 
 function App() {
   const { isInitialized, error } = useVoiceStore();
   const { openSettings } = useSettingsStore();
+  const { show: showConversations } = useConversationsStore();
 
   return (
     <div className="app">
@@ -16,9 +19,14 @@ function App() {
             <h1>Second Brain</h1>
             <p className="subtitle">Voice Assistant</p>
           </div>
-          <button onClick={openSettings} className="settings-button" title="Settings">
-            ⚙️
-          </button>
+          <div className="header-buttons">
+            <button onClick={showConversations} className="conversations-button" title="Conversations">
+              💬
+            </button>
+            <button onClick={openSettings} className="settings-button" title="Settings">
+              ⚙️
+            </button>
+          </div>
         </div>
       </header>
 
@@ -31,8 +39,6 @@ function App() {
 
 
             <VoiceAssistant />
-
-        <ConversationList />
       </main>
 
       <footer className="footer">
@@ -46,6 +52,8 @@ function App() {
       </footer>
 
       <Settings />
+      <YouTubeModal />
+      <ConversationsModal />
     </div>
   );
 }

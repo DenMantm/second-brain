@@ -113,7 +113,7 @@ describe('VoiceStore - Continuous Conversation', () => {
     const wakeWord = getWakeWordDetection();
     
     // Initialize wake word first
-    await wakeWord.init();
+    await wakeWord.initialize(['go'], 0.8);
     
     const store = useVoiceStore.getState();
     store.setWakeWordEnabled(true);
@@ -152,7 +152,7 @@ describe('VoiceStore - Continuous Conversation', () => {
     const wakeWord = getWakeWordDetection();
     
     // Initialize wake word first
-    await wakeWord.init();
+    await wakeWord.initialize(['go'], 0.8);
     
     const store = useVoiceStore.getState();
     store.setWakeWordEnabled(true);
@@ -189,7 +189,7 @@ describe('VoiceStore - Continuous Conversation', () => {
     const wakeWord = getWakeWordDetection();
     
     // Initialize wake word first
-    await wakeWord.init();
+    await wakeWord.initialize(['go'], 0.8);
     vi.clearAllMocks();
     
     const store = useVoiceStore.getState();
