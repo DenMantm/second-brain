@@ -20,15 +20,24 @@ Second Brain is a **locally-hosted AI assistant system** with voice and text int
 ```
 ┌─────────────────────────────────────────────────────┐
 │  User Interfaces                                     │
-│  - Raspberry Pi Voice Client (Python)                │
-│  - Web Interface (React + TypeScript)                │
+│  - Web Browser (HTTPS)                               │
+│  - Raspberry Pi Voice Client (Python) - Optional     │
 └─────────────────────────────────────────────────────┘
-                    ↓ HTTP/WebSocket
+                    ↓ HTTPS (8443) / HTTP (8081→8443)
 ┌─────────────────────────────────────────────────────┐
-│  API Layer (Node.js + TypeScript)                    │
-│  - Express/Fastify server                            │
-│  - Socket.io WebSocket                               │
-│  - Request orchestration                             │
+│  🐳 Web Client Container (Nginx Alpine)              │
+│  - Static React app                                  │
+│  - Reverse proxy (/api → server:3030)                │
+│  - SSL/TLS termination                               │
+│  - HTTP→HTTPS redirect (port 8081→8443)              │
+│  - Ports: 8081 (HTTP), 8443 (HTTPS)                  │
+└─────────────────────────────────────────────────────┘
+                    ↓ HTTP (internal Docker network)
+┌─────────────────────────────────────────────────────┐
+│  🐳 API Server Container (Node 20 Alpine)            │
+│  - Fastify + TypeScript + Socket.io                  │
+│  - Port 3030 (internal)                              │
+│  - esbuild bundle (61ms builds)                      │
 └─────────────────────────────────────────────────────┘
          ↓ HTTP                        ↓ HTTP
 ┌─────────────────────┐       ┌─────────────────────┐
@@ -37,19 +46,18 @@ Second Brain is a **locally-hosted AI assistant system** with voice and text int
 │  Piper TTS          │       │  Faster-Whisper     │
 │  Docker Container   │       │  Docker Container   │
 └─────────────────────┘       └─────────────────────┘
-                    ↓ HTTP/gRPC
+                    ↓ HTTP (Future)
 ┌─────────────────────────────────────────────────────┐
-│  LLM Service (Python)                                │
+│  LLM Service (Planned)                               │
 │  - vLLM or llama.cpp inference                       │
 │  - Mistral 7B / Llama 3.1 8B (AWQ 4-bit)            │
 │  - GPU-accelerated (RTX 4060 Ti)                     │
 └─────────────────────────────────────────────────────┘
                     ↓
 ┌─────────────────────────────────────────────────────┐
-│  Data Layer                                          │
+│  Data Layer (Planned)                                │
 │  - PostgreSQL (structured data)                      │
 │  - Qdrant (vector embeddings)                        │
-│  - Redis (caching, sessions)                         │
 │  - File system (uploads, models)                     │
 └─────────────────────────────────────────────────────┘
 ```
@@ -58,36 +66,45 @@ Second Brain is a **locally-hosted AI assistant system** with voice and text int
 
 **Frontend:**
 - React 18 + TypeScript 5.3 + Vite 5
-- Zustand for state management (or Redux Toolkit)
+- Zustand for state management
 - Socket.io-client for WebSocket
 - Tailwind CSS + shadcn/ui for UI components
 - Web Audio API for voice recording/playback
+- Build time: ~9 seconds (Vite production build)
 
 **Backend API:**
 - Node.js 20 LTS + TypeScript
-- Express.js (or Fastify for performance)
-- Prisma ORM + PostgreSQL 15
+- Fastify (performance-optimized)
 - Socket.io for WebSocket
+- esbuild bundler with `--packages=external`
+- Build time: **61ms** (esbuild with external packages)
+- Bundle strategy: Internal code bundled, node_modules external
 
 **LLM Service:**
-- Python 3.11 + FastAPI
+- Python 3.11 + FastAPI (Planned)
 - vLLM or llama.cpp for inference
 - HuggingFace transformers
 
 **Voice Services (Docker-Only):**
-- **TTS Service** (Port 3002): Piper TTS in Docker container
-- **STT Service** (Port 3003): Faster-Whisper in Docker container
-- **⚠️ IMPORTANT**: TTS/STT services run ONLY in Docker containers - no manual/local installation supported
+- **TTS Service** (Port 3002): Piper TTS - **Docker container REQUIRED**
+- **STT Service** (Port 3003): Faster-Whisper - **Docker container REQUIRED**
+- **⚠️ CRITICAL**: Voice services run ONLY in Docker - no local Python installation supported
 
 **Databases:**
-- PostgreSQL 15 (user data, conversations)
-- Qdrant (vector embeddings)
-- Redis (optional caching)
+- PostgreSQL 15 (planned - user data, conversations)
+- Qdrant (planned - vector embeddings)
 
 **Infrastructure:**
-- Docker + Docker Compose (required for voice services)
-- Nginx reverse proxy
-- CUDA 12.1+ for GPU acceleration
+- **Docker Compose**: 4 services (client, server, tts, stt)
+- **Nginx Alpine**: Reverse proxy with SSL/TLS
+- **SSL Certificates**: Self-signed for development (generate with generate-ssl-cert.ps1)
+- **Ports**:
+  - 8443: HTTPS (client)
+  - 8081: HTTP redirect to HTTPS
+  - 3030: API server (internal Docker network only)
+  - 3002: TTS service
+  - 3003: STT service
+- **CUDA 12.1+**: For GPU acceleration (future LLM service)
 
 ---
 
@@ -849,5 +866,6 @@ When implementing features, refer to:
 
 ---
 
-**Last Updated**: January 4, 2026  
-**Project Status**: 🚧 In Active Development
+**Last Updated**: February 8, 2026  
+**Project Status**: 🚀 Production Ready - Docker HTTPS Deployment  
+**Key Features**: HTTPS support, esbuild (61ms builds), Docker Compose (4 services), Nginx reverse proxy
