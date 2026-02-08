@@ -63,6 +63,9 @@ You can search YouTube, play videos, and control playback using these tools:
 
 When user asks to search YouTube:
 1. Use search_youtube with their query
+2. The search_youtube tool MUST include a non-empty "query" string
+  - Bad: {"name":"search_youtube","args":{}}
+  - Good: {"name":"search_youtube","args":{"query":"scarecrow"}}
 2. After getting results, describe the top videos naturally
 3. Ask which one they'd like to watch
 
@@ -125,6 +128,9 @@ export async function sendMessage(
   
   // Get all messages for context
   const messages = await session.history.getMessages();
+  messages.push(new SystemMessage(
+    'Tool schema reminder: search_youtube requires args with a non-empty "query" string and optional "max_results" number.'
+  ));
   
   // Call LLM with full conversation history
   const response = await session.llm.invoke(messages);
@@ -173,6 +179,7 @@ export async function* sendMessageStream(
   
   let fullResponse = '';
   const toolCalls: any[] = [];
+  const toolCallBuffers = new Map<string, { name?: string; argsText: string }>();
   
   for await (const chunk of stream) {
     // Handle text content
@@ -182,11 +189,52 @@ export async function* sendMessageStream(
       yield content; // Yield text chunks for streaming display
     }
     
-    // Handle tool calls (YouTube functions)
-    if (chunk.tool_calls && chunk.tool_calls.length > 0) {
-      console.log(`[YouTube Tool] Raw tool calls from LLM:`, JSON.stringify(chunk.tool_calls, null, 2));
-      for (const toolCall of chunk.tool_calls) {
-        toolCalls.push(toolCall);
+    // Handle tool call chunks (streamed tool args)
+    const toolCallChunks = (chunk as any).tool_call_chunks
+      ?? (chunk as any).kwargs?.tool_call_chunks
+      ?? [];
+    const chunkToolCalls = (chunk as any).kwargs?.additional_kwargs?.tool_calls
+      ?? (chunk as any).additional_kwargs?.tool_calls
+      ?? [];
+
+    if (toolCallChunks.length > 0) {
+      for (const toolCallChunk of toolCallChunks) {
+        const index = toolCallChunk.index ?? 0;
+        const id = `index-${index}`;
+        const existing = toolCallBuffers.get(id) ?? { argsText: '' };
+        if (toolCallChunk.name) {
+          existing.name = toolCallChunk.name;
+        }
+        if (!existing.name && chunkToolCalls[index]?.function?.name) {
+          existing.name = chunkToolCalls[index].function.name;
+        }
+        if (toolCallChunk.args) {
+          existing.argsText += toolCallChunk.args;
+        }
+        toolCallBuffers.set(id, existing);
+      }
+    }
+  }
+
+  // Parse buffered tool call args into complete tool calls
+  if (toolCallBuffers.size > 0) {
+    for (const [id, buffer] of toolCallBuffers.entries()) {
+      const name = buffer.name ?? '';
+      const argsText = buffer.argsText.trim();
+      if (!name || !argsText) {
+        continue;
+      }
+
+      try {
+        const parsedArgs = JSON.parse(argsText);
+        toolCalls.push({
+          name,
+          args: parsedArgs,
+          id,
+          type: 'tool_call',
+        });
+      } catch (error) {
+        console.error(`[YouTube Tool] Failed to parse tool args for ${name}:`, error);
       }
     }
   }
@@ -195,26 +243,19 @@ export async function* sendMessageStream(
   if (toolCalls.length > 0) {
     for (const toolCall of toolCalls) {
       try {
-        // Log the tool call for debugging
-        console.log(`[YouTube Tool] Tool call received:`, {
-          name: toolCall.name,
-          args: toolCall.args,
-          argsType: typeof toolCall.args,
-          argsKeys: toolCall.args ? Object.keys(toolCall.args) : [],
-        });
-        
         // Find the matching tool
         const tool = youtubeTools.find(t => t.name === toolCall.name);
         
         if (tool) {
+          const toolArgs = typeof toolCall.args === 'object' && toolCall.args !== null
+            ? toolCall.args
+            : {};
+          
           // Fallback: If search_youtube is called without query, try to extract from user message
-          let toolArgs = toolCall.args;
           if (toolCall.name === 'search_youtube' && (!toolArgs.query || toolArgs.query === '')) {
-            console.log(`[YouTube Tool] search_youtube called without query, trying to extract from user message: "${message}"`);
-            
             // Try to extract search query from user message
             // Remove common phrases like "search for", "find", "show me", etc.
-            let extractedQuery = message.toLowerCase()
+            const extractedQuery = message.toLowerCase()
               .replace(/^(can you\s+)?search\s+(for\s+)?/i, '')
               .replace(/^(find|show|look for|get|play)\s+(me\s+)?(some\s+)?/i, '')
               .replace(/^(a\s+)?youtube\s+(videos?\s+)?/i, '')
@@ -223,12 +264,10 @@ export async function* sendMessageStream(
               .trim();
             
             if (extractedQuery) {
-              console.log(`[YouTube Tool] Extracted query: "${extractedQuery}"`);
-              toolArgs = { ...toolArgs, query: extractedQuery };
+              toolArgs.query = extractedQuery;
             } else {
               // If extraction failed, use the original message
-              console.log(`[YouTube Tool] Extraction failed, using original message as query`);
-              toolArgs = { ...toolArgs, query: message };
+              toolArgs.query = message;
             }
           }
           
@@ -243,7 +282,7 @@ export async function* sendMessageStream(
             type: 'tool_call',
             data: {
               name: toolCall.name,
-              args: toolCall.args,
+              args: toolArgs,
               result: parsedResult,
             },
           };

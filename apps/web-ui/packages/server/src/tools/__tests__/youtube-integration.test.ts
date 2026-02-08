@@ -17,6 +17,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { youtubeTools } from '../youtube-tools';
+import { sendMessageStream } from '../../services/conversation-memory';
 import { config } from '../../config';
 
 // Skip these tests by default (too slow for regular test runs)
@@ -99,6 +100,33 @@ Be concise in your responses.`;
     console.log('  Tool call:', toolCall.name);
     console.log('  Args:', JSON.stringify(toolCall.args, null, 2));
   }, 30000); // 30 second timeout for LLM call
+
+  it('should use tool args in real streaming code path', async () => {
+    const sessionId = `integration-${Date.now()}`;
+    const userMessage = 'Search YouTube for videos about scarecrows';
+
+    const stream = await sendMessageStream(sessionId, userMessage, {
+      temperature: 0.2,
+      maxTokens: 512,
+    });
+
+    const toolCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+
+    for await (const chunk of stream) {
+      if (typeof chunk === 'object' && chunk?.type === 'tool_call') {
+        toolCalls.push({
+          name: chunk.data.name,
+          args: chunk.data.args ?? {},
+        });
+      }
+    }
+
+    expect(toolCalls.length).toBeGreaterThan(0);
+    const searchCall = toolCalls.find(c => c.name === 'search_youtube');
+    expect(searchCall).toBeDefined();
+    expect(searchCall?.args).toHaveProperty('query');
+    expect(String(searchCall?.args.query || '')).toContain('scarecrow');
+  }, 60000);
 
   it('should execute tool and return real YouTube results', async () => {
     const systemPrompt = `You are a helpful assistant with YouTube capabilities.
