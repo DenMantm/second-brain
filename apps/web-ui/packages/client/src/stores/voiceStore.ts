@@ -48,19 +48,19 @@ function getStreamingOrchestrator(): StreamingOrchestrator {
         const store = useVoiceStore.getState();
         store.setSpeaking(false);
         
-        // Only restart wake word detection if it's enabled and not already listening
-        const wakeWord = getWakeWordDetection();
-        if (wakeWord.isInitialized() && store.wakeWordEnabled && !wakeWord.isListening) {
-          try {
+        // Automatically start recording again for continuous conversation
+        console.log('🎙️ Starting recording for continuous conversation...');
+        try {
+          await store.startRecording();
+        } catch (error) {
+          console.error('❌ Failed to auto-start recording:', error);
+          // Fallback to wake word detection if recording fails
+          const wakeWord = getWakeWordDetection();
+          if (wakeWord.isInitialized() && store.wakeWordEnabled && !wakeWord.isListening) {
             await wakeWord.start();
-            console.log('👂 Wake word detection resumed after playback');
-          } catch (error) {
-            console.error('Failed to restart wake word:', error);
+            console.log('👂 Resumed wake word detection as fallback');
           }
         }
-        
-        // Don't auto-start recording - wait for next wake word or manual trigger
-        console.log('🎙️ Ready for next wake word...');
       }
     });
   }
@@ -334,7 +334,14 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
           currentTranscript: '',
           wakeWordDetected: false,
         });
-        return; // Go back to listening for wake word
+        
+        // Resume wake word detection since user stopped talking
+        const wakeWord = getWakeWordDetection();
+        if (wakeWord.isInitialized() && get().wakeWordEnabled && !wakeWord.isListening) {
+          await wakeWord.start();
+          console.log('👂 Wake word detection resumed after silence');
+        }
+        return;
       }
       
       set({ 
