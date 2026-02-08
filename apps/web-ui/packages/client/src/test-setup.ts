@@ -6,6 +6,14 @@
 import { vi } from 'vitest';
 import '@testing-library/jest-dom';
 
+// Type declarations for test environment
+declare global {
+  interface Window {
+    IS_REACT_ACT_ENVIRONMENT: boolean;
+  }
+  var IS_REACT_ACT_ENVIRONMENT: boolean;
+}
+
 // OFFICIAL FIX for React 18 + Testing Library
 // Source: https://github.com/testing-library/react-testing-library/issues/1413
 // Setting this global variable tells React Testing Library to properly handle React 18's concurrent rendering

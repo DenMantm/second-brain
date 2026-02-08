@@ -9,6 +9,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
       'util': 'util/',
     },
+    dedupe: [
+      '@tensorflow/tfjs',
+      '@tensorflow/tfjs-core',
+      '@tensorflow/tfjs-backend-cpu',
+      '@tensorflow/tfjs-backend-webgl',
+      '@tensorflow/tfjs-converter',
+      '@tensorflow/tfjs-data',
+      '@tensorflow/tfjs-layers',
+    ],
   },
   define: {
     'process.env': {},
@@ -17,6 +26,11 @@ export default defineConfig({
     include: [
       '@tensorflow/tfjs',
       '@tensorflow/tfjs-core',
+      '@tensorflow/tfjs-backend-cpu',
+      '@tensorflow/tfjs-backend-webgl',
+      '@tensorflow/tfjs-converter',
+      '@tensorflow/tfjs-data',
+      '@tensorflow/tfjs-layers',
       '@tensorflow-models/speech-commands',
     ],
     esbuildOptions: {
@@ -44,6 +58,22 @@ export default defineConfig({
     commonjsOptions: {
       include: [/node_modules/],
       transformMixedEsModules: true,
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'tensorflow': [
+            '@tensorflow/tfjs',
+            '@tensorflow/tfjs-core',
+            '@tensorflow/tfjs-backend-cpu',
+            '@tensorflow/tfjs-backend-webgl',
+            '@tensorflow/tfjs-converter',
+            '@tensorflow/tfjs-data',
+            '@tensorflow/tfjs-layers',
+          ],
+          'tensorflow-models': ['@tensorflow-models/speech-commands'],
+        },
+      },
     },
   },
 });

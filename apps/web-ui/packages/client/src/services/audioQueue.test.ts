@@ -287,6 +287,9 @@ describe('AudioQueueManager', () => {
       const invalidAudio = new ArrayBuffer(10);
       await manager.enqueue(invalidAudio);
       
+      // Wait for async playNext() to complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
     });
 
@@ -317,6 +320,8 @@ describe('AudioQueueManager', () => {
       
       await manager.enqueue(new ArrayBuffer(0));
       
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
       expect(onError).toHaveBeenCalled();
     });
   });
@@ -342,10 +347,15 @@ describe('AudioQueueManager', () => {
       await manager.enqueue(new ArrayBuffer(1024));
       manager.clear();
       
+      // Wait for interrupt flag to clear (100ms in implementation)
+      await new Promise(resolve => setTimeout(resolve, 150));
+      
       // Enqueue new audio after interrupt
       await manager.enqueue(new ArrayBuffer(2048));
       
-      await new Promise(resolve => setTimeout(resolve, 20));
+      // Check immediately after enqueue - audio should start playing (10ms mock delay)
+      await new Promise(resolve => setTimeout(resolve, 5));
+      // After interrupt and new enqueue, playback should resume
       expect(manager.isCurrentlyPlaying()).toBe(true);
     });
   });
@@ -358,6 +368,8 @@ describe('AudioQueueManager', () => {
       mockAudioContext.decodeAudioData.mockRejectedValueOnce(new Error('Empty buffer'));
       
       await manager.enqueue(new ArrayBuffer(0));
+      
+      await new Promise(resolve => setTimeout(resolve, 50));
       
       expect(onError).toHaveBeenCalled();
     });

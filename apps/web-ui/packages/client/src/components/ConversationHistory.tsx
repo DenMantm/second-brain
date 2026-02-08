@@ -2,7 +2,7 @@ import { useVoiceStore } from '../stores/voiceStore';
 import './ConversationHistory.css';
 
 export default function ConversationHistory() {
-  const { messages, clearHistory } = useVoiceStore();
+  const { messages } = useVoiceStore();
 
   if (messages.length === 0) {
     return (

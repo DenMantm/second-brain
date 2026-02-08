@@ -16,9 +16,11 @@ vi.mock('../../services/wakeWord', () => {
     targetWords: ['go'],
     threshold: 0.8,
     initialize: vi.fn().mockResolvedValue(undefined),
+    init: vi.fn().mockResolvedValue(undefined), // Alias for initialize
     start: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
     onDetected: vi.fn(),
+    getIsListening: vi.fn(() => false),
   };
   return { getWakeWordDetection: () => mockService };
 });
@@ -34,7 +36,11 @@ vi.mock('../../services/audioRecorder', () => ({
 vi.mock('../../services/stt', () => ({
   transcribeAudio: vi.fn().mockResolvedValue({
     text: 'Test speech',
-    confidence: 0.95,
+    segments: [],
+    language: 'en',
+    language_probability: 0.95,
+    duration: 1.0,
+    inference_time: 0.5,
   }),
 }));
 
@@ -93,22 +99,33 @@ describe('VoiceStore - Continuous Conversation', () => {
     // Mock empty transcription (silence)
     vi.mocked(transcribeAudio).mockResolvedValue({
       text: '',
-      confidence: 0,
+      segments: [],
+      language: 'en',
+      language_probability: 0,
+      duration: 0,
+      inference_time: 0,
     });
     
     const wakeWord = getWakeWordDetection();
-    wakeWord.isListening = false;
+    
+    // Initialize wake word first
+    await wakeWord.init();
     
     const store = useVoiceStore.getState();
+    store.setWakeWordEnabled(true);
     
     // Mock getUserMedia
-    global.navigator.mediaDevices = {
-      getUserMedia: vi.fn().mockResolvedValue({
-        getTracks: () => [{ stop: vi.fn() }],
-      } as any),
-    } as any;
+    Object.defineProperty(global.navigator, 'mediaDevices', {
+      writable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({
+          getTracks: () => [{ stop: vi.fn() }],
+        } as any),
+      },
+    });
     
     await store.startRecording();
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     // Verify wake word resumed when no speech detected
     expect(wakeWord.start).toHaveBeenCalled();
@@ -121,21 +138,32 @@ describe('VoiceStore - Continuous Conversation', () => {
     // Mock whitespace-only transcription
     vi.mocked(transcribeAudio).mockResolvedValue({
       text: '   \n  \t  ',
-      confidence: 0.1,
+      segments: [],
+      language: 'en',
+      language_probability: 0.1,
+      duration: 0.2,
+      inference_time: 0.1,
     });
     
     const wakeWord = getWakeWordDetection();
-    wakeWord.isListening = false;
+    
+    // Initialize wake word first
+    await wakeWord.init();
     
     const store = useVoiceStore.getState();
+    store.setWakeWordEnabled(true);
     
-    global.navigator.mediaDevices = {
-      getUserMedia: vi.fn().mockResolvedValue({
-        getTracks: () => [{ stop: vi.fn() }],
-      } as any),
-    } as any;
+    Object.defineProperty(global.navigator, 'mediaDevices', {
+      writable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({
+          getTracks: () => [{ stop: vi.fn() }],
+        } as any),
+      },
+    });
     
     await store.startRecording();
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     expect(wakeWord.start).toHaveBeenCalled();
   });
@@ -147,20 +175,30 @@ describe('VoiceStore - Continuous Conversation', () => {
     // Mock valid speech
     vi.mocked(transcribeAudio).mockResolvedValue({
       text: 'What is the weather?',
-      confidence: 0.95,
+      segments: [],
+      language: 'en',
+      language_probability: 0.95,
+      duration: 2.0,
+      inference_time: 0.8,
     });
     
     const wakeWord = getWakeWordDetection();
-    wakeWord.isListening = false;
+    
+    // Initialize wake word first
+    await wakeWord.init();
     vi.clearAllMocks();
     
     const store = useVoiceStore.getState();
+    store.setWakeWordEnabled(true);
     
-    global.navigator.mediaDevices = {
-      getUserMedia: vi.fn().mockResolvedValue({
-        getTracks: () => [{ stop: vi.fn() }],
-      } as any),
-    } as any;
+    Object.defineProperty(global.navigator, 'mediaDevices', {
+      writable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({
+          getTracks: () => [{ stop: vi.fn() }],
+        } as any),
+      },
+    });
     
     // We just want to verify the logic doesn't call wake word on valid speech
     // The full LLM flow will fail without all mocks, so we'll just check

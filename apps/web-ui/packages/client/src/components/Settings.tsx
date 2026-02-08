@@ -3,11 +3,6 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useVoiceStore } from '../stores/voiceStore';
 import './Settings.css';
 
-interface Model {
-  id: string;
-  name: string;
-}
-
 export default function Settings() {
   const {
     isOpen,
@@ -98,7 +93,7 @@ export default function Settings() {
                   </option>
                 ))}
               </select>
-              {availableModels.length === 1 && availableModels[0].id === 'openai/gpt-oss-20b' && (
+              {availableModels.length === 1 && availableModels[0]?.id === 'openai/gpt-oss-20b' && (
                 <p className="model-hint" style={{ color: '#f59e0b' }}>
                   ⚠️ Using fallback model. Make sure LM Studio is running on port 1234.
                 </p>

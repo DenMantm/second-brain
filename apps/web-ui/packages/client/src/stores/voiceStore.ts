@@ -56,7 +56,7 @@ function getStreamingOrchestrator(): StreamingOrchestrator {
           console.error('❌ Failed to auto-start recording:', error);
           // Fallback to wake word detection if recording fails
           const wakeWord = getWakeWordDetection();
-          if (wakeWord.isInitialized() && store.wakeWordEnabled && !wakeWord.isListening) {
+          if (wakeWord.isInitialized() && store.wakeWordEnabled && !wakeWord.getIsListening()) {
             await wakeWord.start();
             console.log('👂 Resumed wake word detection as fallback');
           }
@@ -337,7 +337,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         
         // Resume wake word detection since user stopped talking
         const wakeWord = getWakeWordDetection();
-        if (wakeWord.isInitialized() && get().wakeWordEnabled && !wakeWord.isListening) {
+        if (wakeWord.isInitialized() && get().wakeWordEnabled && !wakeWord.getIsListening()) {
           await wakeWord.start();
           console.log('👂 Wake word detection resumed after silence');
         }

@@ -85,7 +85,7 @@ export const useSettingsStore = create<SettingsState>()(
           const { selectedModel } = get();
           const isSelectedModelAvailable = models.some(m => m.id === selectedModel);
           
-          if (!selectedModel || (!isSelectedModelAvailable && models.length > 0)) {
+          if ((!selectedModel || !isSelectedModelAvailable) && models.length > 0 && models[0]) {
             console.log(`Selected model "${selectedModel}" not available, switching to "${models[0].id}"`);
             set({ selectedModel: models[0].id });
           }

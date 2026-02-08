@@ -11,6 +11,7 @@ import {
   addMessageToConversation, 
   getConversationMessages 
 } from './conversation-storage';
+import { youtubeTools } from '../tools/youtube-tools';
 
 // Store conversation sessions by session ID
 interface SessionData {
@@ -35,8 +36,8 @@ function getSession(sessionId: string, options?: ConversationOptions): SessionDa
     return sessions.get(sessionId)!;
   }
 
-  // Create new session with LLM and message history
-  const llm = new ChatOpenAI({
+  // Create base LLM instance
+  const baseLlm = new ChatOpenAI({
     apiKey: 'sk-dummy-key-for-local-llm', // LM Studio doesn't validate API key
     modelName: 'openai/gpt-oss-20b', // GPT OSS 20B model
     temperature: options?.temperature ?? 0.7,
@@ -46,11 +47,39 @@ function getSession(sessionId: string, options?: ConversationOptions): SessionDa
     },
   });
 
+  // Bind YouTube tools to LLM for function calling
+  const llm = baseLlm.bindTools(youtubeTools);
+
   const history = new ChatMessageHistory();
   
-  // Add system prompt optimized for voice assistant
-  const systemPrompt = options?.systemPrompt ?? `You are a helpful voice assistant, a replacement for Google Assistant. Your responses will be converted to speech and played back to the user, so follow these guidelines:
+  // Add system prompt optimized for voice assistant with YouTube capabilities
+  const systemPrompt = options?.systemPrompt ?? `You are a helpful voice assistant with YouTube search and playback capabilities, a replacement for Google Assistant. Your responses will be converted to speech and played back to the user.
 
+YOUTUBE CAPABILITIES:
+You can search YouTube, play videos, and control playback using these tools:
+- search_youtube: Search for videos (e.g., "search YouTube for cooking recipes")
+- play_youtube_video: Play a video by index from search results (e.g., "play the first one")
+- control_youtube_player: Control playback (play, pause, seek, volume)
+
+When user asks to search YouTube:
+1. Use search_youtube with their query
+2. After getting results, describe the top videos naturally
+3. Ask which one they'd like to watch
+
+When user selects a video (e.g., "play the first one", "play number 3"):
+IMPORTANT: When presenting search results, describe them conversationally:
+- "I found some great cooking videos. The top one is 'Easy 15-Minute Pasta' by Chef John with 2 million views."
+- "There's also 'Traditional Italian Pasta' by Italia Squisita with 850 thousand views."
+- Use natural language for numbers and avoid listing format
+
+1. Use play_youtube_video with the index
+2. Confirm what's now playing
+
+For playback controls (pause, play, skip to time, volume):
+1. Use control_youtube_player with the appropriate action
+2. Confirm the action
+
+VOICE RESPONSE GUIDELINES:
 1. Keep responses conversational and natural - speak like a friendly, knowledgeable assistant
 2. Be concise but complete - aim for 2-4 sentences unless more detail is specifically requested
 3. Avoid visual formatting - no markdown (no **bold**, *italic*, \`code\`, [links]), bullet points, or numbered lists (use "first", "second", "also" instead)
@@ -117,12 +146,13 @@ export async function sendMessage(
 
 /**
  * Send a message and stream the response chunk by chunk
+ * Handles both text streaming and tool calls (YouTube functions)
  */
 export async function* sendMessageStream(
   sessionId: string,
   message: string,
   options?: ConversationOptions
-): AsyncGenerator<string, void, unknown> {
+): AsyncGenerator<string | { type: 'tool_call'; data: any }, void, unknown> {
   const session = getSession(sessionId, options);
   
   // Add user message to history
@@ -142,11 +172,102 @@ export async function* sendMessageStream(
   const stream = await session.llm.stream(messages);
   
   let fullResponse = '';
+  const toolCalls: any[] = [];
   
   for await (const chunk of stream) {
-    const content = chunk.content.toString();
-    fullResponse += content;
-    yield content;
+    // Handle text content
+    const content = chunk.content?.toString() || '';
+    if (content) {
+      fullResponse += content;
+      yield content; // Yield text chunks for streaming display
+    }
+    
+    // Handle tool calls (YouTube functions)
+    if (chunk.tool_calls && chunk.tool_calls.length > 0) {
+      console.log(`[YouTube Tool] Raw tool calls from LLM:`, JSON.stringify(chunk.tool_calls, null, 2));
+      for (const toolCall of chunk.tool_calls) {
+        toolCalls.push(toolCall);
+      }
+    }
+  }
+  
+  // Execute any tool calls that were made
+  if (toolCalls.length > 0) {
+    for (const toolCall of toolCalls) {
+      try {
+        // Log the tool call for debugging
+        console.log(`[YouTube Tool] Tool call received:`, {
+          name: toolCall.name,
+          args: toolCall.args,
+          argsType: typeof toolCall.args,
+          argsKeys: toolCall.args ? Object.keys(toolCall.args) : [],
+        });
+        
+        // Find the matching tool
+        const tool = youtubeTools.find(t => t.name === toolCall.name);
+        
+        if (tool) {
+          // Fallback: If search_youtube is called without query, try to extract from user message
+          let toolArgs = toolCall.args;
+          if (toolCall.name === 'search_youtube' && (!toolArgs.query || toolArgs.query === '')) {
+            console.log(`[YouTube Tool] search_youtube called without query, trying to extract from user message: "${message}"`);
+            
+            // Try to extract search query from user message
+            // Remove common phrases like "search for", "find", "show me", etc.
+            let extractedQuery = message.toLowerCase()
+              .replace(/^(can you\s+)?search\s+(for\s+)?/i, '')
+              .replace(/^(find|show|look for|get|play)\s+(me\s+)?(some\s+)?/i, '')
+              .replace(/^(a\s+)?youtube\s+(videos?\s+)?/i, '')
+              .replace(/(videos?\s+)?(for|about|on|of)\s+/i, '')
+              .replace(/\s+on\s+youtube$/i, '')
+              .trim();
+            
+            if (extractedQuery) {
+              console.log(`[YouTube Tool] Extracted query: "${extractedQuery}"`);
+              toolArgs = { ...toolArgs, query: extractedQuery };
+            } else {
+              // If extraction failed, use the original message
+              console.log(`[YouTube Tool] Extraction failed, using original message as query`);
+              toolArgs = { ...toolArgs, query: message };
+            }
+          }
+          
+          // Execute the tool
+          const result = await tool.invoke(toolArgs);
+          
+          // Parse the JSON result
+          const parsedResult = JSON.parse(result);
+          
+          // Yield tool execution result to frontend
+          yield {
+            type: 'tool_call',
+            data: {
+              name: toolCall.name,
+              args: toolCall.args,
+              result: parsedResult,
+            },
+          };
+          
+          // Add note about tool execution to response text
+          if (parsedResult.success) {
+            fullResponse += `\n[Executed: ${toolCall.name}]`;
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to execute tool ${toolCall.name}:`, error);
+        yield {
+          type: 'tool_call',
+          data: {
+            name: toolCall.name,
+            args: toolCall.args,
+            result: {
+              success: false,
+              error: error instanceof Error ? error.message : 'Tool execution failed',
+            },
+          },
+        };
+      }
+    }
   }
   
   // Add full AI response to history

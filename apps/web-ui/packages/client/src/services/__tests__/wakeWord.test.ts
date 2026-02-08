@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { WakeWordDetection } from '../wakeWord';
 
 // Mock TensorFlow.js
@@ -21,7 +21,7 @@ vi.mock('@tensorflow-models/speech-commands', () => ({
 
 describe('WakeWordDetection', () => {
   let wakeWord: WakeWordDetection;
-  let detectedCallback: vi.Mock;
+  let detectedCallback: Mock;
 
   beforeEach(() => {
     wakeWord = new WakeWordDetection();

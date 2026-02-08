@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useMicrophonePermission } from '../useMicrophonePermission';
-import React from 'react';
 
 describe('useMicrophonePermission', () => {
   let mockPermissionStatus: {
