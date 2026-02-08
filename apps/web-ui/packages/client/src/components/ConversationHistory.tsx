@@ -1,8 +1,10 @@
 import { useVoiceStore } from '../stores/voiceStore';
+import { useConversationFormatting } from '../hooks';
 import './ConversationHistory.css';
 
 export default function ConversationHistory() {
   const { messages } = useVoiceStore();
+  const { formatTime, getRoleBadge } = useConversationFormatting();
 
   if (messages.length === 0) {
     return (
@@ -19,14 +21,10 @@ export default function ConversationHistory() {
           <div key={message.id} className={`message ${message.role}`}>
             <div className="message-header">
               <span className="role-badge">
-                {message.role === 'user'
-                  ? '👤 You'
-                  : message.role === 'assistant'
-                    ? '🤖 Assistant'
-                    : 'ℹ️ System'}
+                {getRoleBadge(message.role)}
               </span>
               <span className="timestamp">
-                {new Date(message.timestamp).toLocaleTimeString()}
+                {formatTime(message.timestamp)}
               </span>
             </div>
             <div className="message-content">{message.content}</div>

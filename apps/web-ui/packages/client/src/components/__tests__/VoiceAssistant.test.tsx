@@ -3,6 +3,20 @@ import { render, screen } from '@testing-library/react';
 import VoiceAssistant from '../VoiceAssistant';
 import { useVoiceStore } from '../../stores/voiceStore';
 
+// Mock TensorFlow modules to prevent loading errors
+vi.mock('@tensorflow/tfjs-core', () => ({}));
+vi.mock('@tensorflow/tfjs-backend-cpu', () => ({}));
+vi.mock('@tensorflow/tfjs-backend-webgl', () => ({}));
+vi.mock('@tensorflow/tfjs-converter', () => ({}));
+vi.mock('@tensorflow-models/speech-commands', () => ({}));
+
+vi.mock('@tensorflow/tfjs', () => ({
+  ready: vi.fn().mockResolvedValue(undefined),
+  browser: { fromPixels: vi.fn() },
+  tidy: vi.fn((fn) => fn()),
+  dispose: vi.fn(),
+}));
+
 // Mock the voice store
 vi.mock('../../stores/voiceStore', () => ({
   useVoiceStore: vi.fn(),

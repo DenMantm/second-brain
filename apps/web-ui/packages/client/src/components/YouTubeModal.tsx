@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useYouTubeStore } from '../stores/youtubeStore';
 import { useVoiceStore } from '../stores/voiceStore';
+import { useYouTubeModal } from '../hooks';
 import './YouTubeModal.css';
 
 // Wait for YouTube IFrame API to load
@@ -20,24 +21,29 @@ function waitForYouTubeAPI(): Promise<void> {
 export function YouTubeModal() {
   const {
     viewMode,
-    modalSize,
     searchResults,
     currentVideoId,
-    searchQuery,
     isPlaying,
     volume,
     isMuted,
-    toggleSize,
-    hide,
-    playVideo,
     setPlayer,
+    updatePlayerState,
+  } = useYouTubeStore();
+
+  const {
+    modalSize,
+    isVisible,
+    hide,
+    toggleSize,
+    playVideo,
     togglePlayPause,
     setVolume,
     volumeUp,
     volumeDown,
     toggleMute,
-    updatePlayerState,
-  } = useYouTubeStore();
+    getHeaderIcon,
+    getHeaderTitle,
+  } = useYouTubeModal();
 
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any | null>(null);
@@ -163,22 +169,9 @@ export function YouTubeModal() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [viewMode, togglePlayPause, volumeUp, volumeDown, toggleMute]);
 
-  if (viewMode === 'hidden') {
+  if (!isVisible) {
     return null;
   }
-
-  // Determine icon based on current state
-  const getHeaderIcon = () => {
-    if (viewMode === 'search') return '🔍';
-    if (viewMode === 'video') return '▶️';
-    return '📺';
-  };
-
-  const getHeaderTitle = () => {
-    if (viewMode === 'search') return searchQuery ? `Search: ${searchQuery}` : 'YouTube Search';
-    if (viewMode === 'video') return 'Now Playing';
-    return 'YouTube';
-  };
 
   const getVoiceStatus = () => {
     if (isSpeaking) return { icon: '🔊', text: 'Speaking', className: 'speaking' };

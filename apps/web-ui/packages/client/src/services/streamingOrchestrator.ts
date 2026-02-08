@@ -4,6 +4,7 @@
 
 import { SentenceSplitter } from './sentenceSplitter';
 import { AudioQueueManager } from './audioQueue';
+import { prepareTextForTTS } from './textSanitizer';
 interface TTSResult {
   audio: string; // Base64 encoded audio
   duration: number;
@@ -116,15 +117,24 @@ export class StreamingOrchestrator {
       return;
     }
     
+    // Sanitize text before sending to TTS
+    const sanitizedText = prepareTextForTTS(sentence);
+    
+    if (!sanitizedText) {
+      console.warn(`Orchestrator: Skipping invalid sentence #${sentenceId}`);
+      this.pendingRequests.delete(sentenceId);
+      return;
+    }
+    
     const controller = new AbortController();
     const request: PendingTTSRequest = {
       sentenceId,
-      sentence,
+      sentence: sanitizedText, // Use sanitized text
       controller
     };
     
     this.pendingRequests.set(sentenceId, request);
-    this.options.onTTSStart?.(sentence, sentenceId);
+    this.options.onTTSStart?.(sanitizedText, sentenceId);
     
     try {
       console.log(`Orchestrator: Synthesizing sentence #${sentenceId}`);
@@ -135,7 +145,7 @@ export class StreamingOrchestrator {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          text: sentence,
+          text: sanitizedText, // Send sanitized text to TTS
           length_scale: this.getTTSSettings().length_scale,
           noise_scale: this.getTTSSettings().noise_scale,
           noise_w_scale: this.getTTSSettings().noise_w_scale,
@@ -164,20 +174,18 @@ export class StreamingOrchestrator {
         uint8Array[i] = audioData.charCodeAt(i);
       }
       
-      console.log(`Orchestrator: TTS complete for sentence #${sentenceId}, ${arrayBuffer.byteLength} bytes`);
-      
-      // Store completed audio
+      // Store completed audio with sentence ID
       this.completedAudio.set(sentenceId, arrayBuffer);
       
       // Enqueue audio in order - check if we can enqueue any pending completions
       this.enqueueInOrder();
       
-      this.options.onTTSComplete?.(sentence, sentenceId);
+      this.options.onTTSComplete?.(sanitizedText, sentenceId);
       
     } catch (error) {
       if ((error as Error).name !== 'AbortError') {
         console.error(`Orchestrator: TTS failed for sentence #${sentenceId}:`, error);
-        this.options.onTTSError?.(sentence, sentenceId, error as Error);
+        this.options.onTTSError?.(sanitizedText, sentenceId, error as Error);
       }
     } finally {
       this.pendingRequests.delete(sentenceId);

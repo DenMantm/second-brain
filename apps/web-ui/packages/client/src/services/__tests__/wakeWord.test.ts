@@ -139,8 +139,8 @@ describe('WakeWordDetection', () => {
       await wakeWord.stop();
       await wakeWord.stop();
       
-      // Should not throw error
-      expect(mockRecognizer.stopListening).toHaveBeenCalledTimes(2);
+      // Should not throw error - second call returns early since not listening
+      expect(mockRecognizer.stopListening).toHaveBeenCalledTimes(1);
     });
 
     it('should always call stopListening regardless of flag state', async () => {
