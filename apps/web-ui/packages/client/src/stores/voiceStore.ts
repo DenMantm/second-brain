@@ -13,6 +13,15 @@ import {
   type ConversationMetadata 
 } from '../services/conversations';
 
+// Expose wake word service for E2E testing
+// This allows E2E tests to verify the internal state of wake word detection
+if (typeof window !== 'undefined') {
+  // Always expose in non-production or when explicitly requested for testing
+  if (import.meta.env.MODE !== 'production' || import.meta.env.VITE_EXPOSE_TEST_HOOKS === 'true') {
+    (window as any).__getWakeWordService = () => getWakeWordDetection();
+  }
+}
+
 // Global streaming orchestrator instance
 let streamingOrchestrator: StreamingOrchestrator | null = null;
 
@@ -39,16 +48,19 @@ function getStreamingOrchestrator(): StreamingOrchestrator {
         const store = useVoiceStore.getState();
         store.setSpeaking(false);
         
-        // Restart wake word detection after AI finishes speaking
+        // Only restart wake word detection if it's enabled and not already listening
         const wakeWord = getWakeWordDetection();
-        if (wakeWord.isInitialized() && store.isListening) {
-          await wakeWord.start();
-          console.log('🔊 Wake word detection resumed');
+        if (wakeWord.isInitialized() && store.wakeWordEnabled && !wakeWord.isListening) {
+          try {
+            await wakeWord.start();
+            console.log('👂 Wake word detection resumed after playback');
+          } catch (error) {
+            console.error('Failed to restart wake word:', error);
+          }
         }
         
-        // Automatically start listening again for follow-up conversation
-        console.log('🎙️ Ready for follow-up - listening...');
-        store.startRecording();
+        // Don't auto-start recording - wait for next wake word or manual trigger
+        console.log('🎙️ Ready for next wake word...');
       }
     });
   }

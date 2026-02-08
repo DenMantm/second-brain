@@ -39,11 +39,13 @@ export class WakeWordDetection {
       console.log('Loading speech commands model...');
       
       // Create recognizer (uses Google's 18-word model)
-      this.recognizer = speechCommands.create('BROWSER_FFT');
+      const recognizer = speechCommands.create('BROWSER_FFT');
       
       // Load model
-      await this.recognizer.ensureModelLoaded();
+      await recognizer.ensureModelLoaded();
       
+      // Only set recognizer after successful initialization
+      this.recognizer = recognizer;
       this.targetWords = keywords;
       this.threshold = threshold;
       
@@ -53,6 +55,8 @@ export class WakeWordDetection {
       console.log('Target wake words:', keywords.join(', '));
       console.log('Threshold:', threshold);
     } catch (error) {
+      // Ensure recognizer is null on failure
+      this.recognizer = null;
       console.error('Failed to initialize wake word detection:', error);
       throw error;
     }
@@ -161,6 +165,13 @@ export class WakeWordDetection {
     this.recognizer = null;
     
     console.log('Wake word detection released');
+  }
+
+  /**
+   * Dispose of resources (alias for release)
+   */
+  async dispose(): Promise<void> {
+    return this.release();
   }
 
   /**

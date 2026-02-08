@@ -14,11 +14,11 @@ export class SentenceSplitter {
   private maxBufferSize: number;
   private abbreviations: Set<string>;
   
-  // Regex for sentence boundaries
-  private boundaryRegex = /([.!?;])\s+/g;
+  // Regex for sentence boundaries (matches punctuation followed by space OR end of string)
+  private boundaryRegex = /([.!?;])(\s+|$)/g;
   
   constructor(options: SentenceSplitterOptions = {}) {
-    this.minSentenceLength = options.minSentenceLength ?? 10;
+    this.minSentenceLength = options.minSentenceLength ?? 3;  // Allow very short sentences
     this.maxBufferSize = options.maxBufferSize ?? 500;
     
     // Common abbreviations to ignore
@@ -99,13 +99,13 @@ export class SentenceSplitter {
       // Extract potential sentence
       const potentialSentence = this.buffer.substring(0, endIndex).trim();
       
-      // Check if it's long enough
-      if (potentialSentence.length < this.minSentenceLength) {
+      // Check if it ends with an abbreviation
+      if (this.endsWithAbbreviation(potentialSentence)) {
         continue;
       }
       
-      // Check if it ends with an abbreviation
-      if (this.endsWithAbbreviation(potentialSentence)) {
+      // Check if it's long enough
+      if (potentialSentence.length < this.minSentenceLength) {
         continue;
       }
       

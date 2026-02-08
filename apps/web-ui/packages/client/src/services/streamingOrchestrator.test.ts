@@ -66,9 +66,17 @@ describe('StreamingOrchestrator', () => {
 
     orchestrator = new StreamingOrchestrator(callbacks);
 
-    // Mock successful TTS response
+    // Mock successful TTS response with all required methods
     (global.fetch as any).mockResolvedValue({
       ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => '',
+      json: async () => ({
+        audio: btoa(String.fromCharCode(...new Uint8Array(new ArrayBuffer(1024)))),
+        duration: 1.0,
+        sample_rate: 22050
+      }),
       arrayBuffer: async () => new ArrayBuffer(1024),
     });
   });
@@ -304,6 +312,9 @@ describe('StreamingOrchestrator', () => {
         ok: false,
         status: 500,
         statusText: 'Server Error',
+        text: async () => 'Server error occurred',
+        json: async () => ({}),
+        arrayBuffer: async () => new ArrayBuffer(0),
       });
       
       await orchestrator.processTextChunk('Test sentence.');
@@ -317,7 +328,18 @@ describe('StreamingOrchestrator', () => {
       // Mock first failure, then success
       (global.fetch as any)
         .mockRejectedValueOnce(new Error('Failed'))
-        .mockResolvedValueOnce({ ok: true, arrayBuffer: async () => new ArrayBuffer(1024) });
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          text: async () => '',
+          json: async () => ({
+            audio: btoa(String.fromCharCode(...new Uint8Array(new ArrayBuffer(1024)))),
+            duration: 1.0,
+            sample_rate: 22050
+          }),
+          arrayBuffer: async () => new ArrayBuffer(1024),
+        });
       
       await orchestrator.processTextChunk('Test sentence.');
       
@@ -330,6 +352,14 @@ describe('StreamingOrchestrator', () => {
     it('should handle arrayBuffer() errors', async () => {
       (global.fetch as any).mockResolvedValueOnce({
         ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => '',
+        json: async () => ({
+          audio: btoa(String.fromCharCode(...new Uint8Array(new ArrayBuffer(1024)))),
+          duration: 1.0,
+          sample_rate: 22050
+        }),
         arrayBuffer: async () => { throw new Error('Decode error'); },
       });
       
@@ -346,7 +376,7 @@ describe('StreamingOrchestrator', () => {
       const status = orchestrator.getStatus();
       
       expect(status).toHaveProperty('pendingTTSRequests');
-      expect(status).toHaveProperty('queueLength');
+      expect(status).toHaveProperty('queuedAudio');
       expect(status).toHaveProperty('isPlaying');
     });
 

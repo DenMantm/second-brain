@@ -41,7 +41,7 @@ export class StreamingOrchestrator {
     this.options = options;
     
     this.sentenceSplitter = new SentenceSplitter({
-      minSentenceLength: 10,
+      minSentenceLength: 3,  // Allow very short sentences like "Hi."
       maxBufferSize: 500
     });
     
