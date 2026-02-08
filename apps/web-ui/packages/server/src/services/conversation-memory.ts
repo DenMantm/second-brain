@@ -11,7 +11,6 @@ import {
 import {
   SessionManager,
   StreamProcessor,
-  type SessionOptions,
 } from './managers';
 
 // Create singleton instances

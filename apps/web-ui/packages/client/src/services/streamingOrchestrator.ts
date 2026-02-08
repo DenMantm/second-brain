@@ -38,7 +38,7 @@ export class StreamingOrchestrator {
   private isInterrupted: boolean = false;
   
   constructor(options: StreamingOrchestratorOptions = {}) {
-    this.ttsEndpoint = options.ttsEndpoint ?? 'http://localhost:3002/api/tts/synthesize';
+    this.ttsEndpoint = options.ttsEndpoint ?? '/api/tts/synthesize';
     this.options = options;
     
     this.sentenceSplitter = new SentenceSplitter({

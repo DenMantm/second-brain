@@ -9,7 +9,7 @@ const LM_STUDIO_URL = process.env.LM_STUDIO_URL || 'http://localhost:1234';
 
 export function registerModelsRoutes(fastify: FastifyInstance) {
   // Get available models from LM Studio
-  fastify.get('/api/models', async (request, reply) => {
+  fastify.get('/api/models', async (_request, reply) => {
     try {
       fastify.log.info('Fetching models from LM Studio...');
       
@@ -20,10 +20,10 @@ export function registerModelsRoutes(fastify: FastifyInstance) {
         throw new Error(`LM Studio error: ${response.status} ${response.statusText}`);
       }
       
-      const data = await response.json();
+      const data = await response.json() as { data?: unknown[] };
       
       if (!data.data || !Array.isArray(data.data)) {
-        fastify.log.error('Invalid response format from LM Studio:', data);
+        fastify.log.error({ data }, 'Invalid response format from LM Studio');
         throw new Error('Invalid response format from LM Studio');
       }
       
@@ -31,7 +31,7 @@ export function registerModelsRoutes(fastify: FastifyInstance) {
       
       return data;
     } catch (error) {
-      fastify.log.error('Failed to fetch models from LM Studio:', error);
+      fastify.log.error({ err: error }, 'Failed to fetch models from LM Studio');
       
       // Return error response
       reply.status(503).send({

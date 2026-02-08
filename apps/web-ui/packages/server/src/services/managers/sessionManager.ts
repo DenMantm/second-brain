@@ -6,13 +6,16 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatMessageHistory } from '@langchain/community/stores/message/in_memory';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
+import type { Runnable } from '@langchain/core/runnables';
+import type { BaseLanguageModelInput } from '@langchain/core/language_models/base';
+import type { AIMessageChunk } from '@langchain/core/messages';
 import { config } from '../../config';
 import { youtubeTools } from '../../tools/youtube-tools';
 import { PromptManager } from './promptManager';
 
 export interface SessionData {
   history: ChatMessageHistory;
-  llm: ChatOpenAI;
+  llm: ChatOpenAI | Runnable<BaseLanguageModelInput, AIMessageChunk>;
 }
 
 export interface SessionOptions {
@@ -56,7 +59,8 @@ export class SessionManager {
     });
 
     // Bind YouTube tools to LLM for function calling
-    const llm = baseLlm.bindTools(youtubeTools);
+    // Note: bindTools returns a Runnable, not ChatOpenAI
+    const llm = baseLlm.bindTools(youtubeTools) as unknown as SessionData['llm'];
 
     const history = new ChatMessageHistory();
     

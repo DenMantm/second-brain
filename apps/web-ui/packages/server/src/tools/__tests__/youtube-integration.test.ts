@@ -15,6 +15,9 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { ChatOpenAI } from '@langchain/openai';
+import type { Runnable } from '@langchain/core/runnables';
+import type { BaseLanguageModelInput } from '@langchain/core/language_models/base';
+import type { AIMessageChunk } from '@langchain/core/messages';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { youtubeTools } from '../youtube-tools';
 import { sendMessageStream } from '../../services/conversation-memory';
@@ -165,6 +168,7 @@ After tool returns results, describe the top video naturally.`;
     expect(tool).toBeDefined();
 
     console.log('\n⚙️  EXECUTING TOOL:', toolCall.name);
+    // @ts-expect-error - Tool invocation type compatibility
     const toolResult = await tool!.invoke(toolCall.args);
     const parsedResult = JSON.parse(toolResult);
 
@@ -237,6 +241,7 @@ When user searches, use search_youtube. When they ask to play a video by number,
     expect(searchResponse.tool_calls).toBeDefined();
     
     const searchTool = youtubeTools.find(t => t.name === 'search_youtube');
+    // @ts-expect-error - Tool invocation type compatibility
     const searchResult = await searchTool!.invoke(searchResponse.tool_calls![0].args);
 
     console.log('✓ Performed search, got results');

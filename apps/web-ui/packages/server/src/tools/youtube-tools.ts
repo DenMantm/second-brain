@@ -9,16 +9,20 @@ import { searchYouTube, type VideoResult } from '../services/youtube';
 // Store last search results in memory for reference
 let lastSearchResults: VideoResult[] = [];
 
+// Define search schema separately to help with type inference
+const searchYouTubeSchema = z.object({
+  query: z.string().describe('The search query (e.g., "cooking recipes", "jazz music", "guitar tutorials")'),
+  max_results: z.number().optional().default(10).describe('Maximum number of results to return (default: 10, max: 20)'),
+});
+
 /**
  * Search YouTube for videos
  */
+// @ts-ignore - Deep type instantiation with Zod/LangChain
 export const searchYouTubeTool = new DynamicStructuredTool({
   name: 'search_youtube',
   description: 'Search YouTube for videos. Returns a list of videos with titles, channels, view counts, and durations. Use this when the user asks to find, search, or show videos on YouTube.',
-  schema: z.object({
-    query: z.string().describe('The search query (e.g., "cooking recipes", "jazz music", "guitar tutorials")'),
-    max_results: z.number().optional().default(10).describe('Maximum number of results to return (default: 10, max: 20)'),
-  }),
+  schema: searchYouTubeSchema,
   func: async ({ query, max_results = 10 }) => {
     try {
       const response = await searchYouTube(query, max_results);
@@ -53,16 +57,20 @@ export const searchYouTubeTool = new DynamicStructuredTool({
   },
 });
 
+// Define play video schema separately
+const playYouTubeVideoSchema = z.object({
+  video_id: z.string().optional().describe('YouTube video ID (11 characters, e.g., "dQw4w9WgXcQ")'),
+  index: z.number().optional().describe('Index from search results (1-based, e.g., 1 for first video, 2 for second)'),
+});
+
 /**
  * Play a YouTube video by index or video ID
  */
+// @ts-ignore - Deep type instantiation with Zod/LangChain
 export const playYouTubeVideoTool = new DynamicStructuredTool({
   name: 'play_youtube_video',
   description: 'Play a YouTube video by index from previous search results (e.g., "play the first one", "play number 3") or by video ID. Returns instructions for the frontend to load the video.',
-  schema: z.object({
-    video_id: z.string().optional().describe('YouTube video ID (11 characters, e.g., "dQw4w9WgXcQ")'),
-    index: z.number().optional().describe('Index from search results (1-based, e.g., 1 for first video, 2 for second)'),
-  }),
+  schema: playYouTubeVideoSchema,
   func: async ({ video_id, index }) => {
     if (video_id) {
       // Play by video ID
@@ -76,7 +84,14 @@ export const playYouTubeVideoTool = new DynamicStructuredTool({
     
     if (index !== undefined && index > 0 && index <= lastSearchResults.length) {
       // Play by index from last search
-      const video = lastSearchResults[index - 1];
+      const indexZeroBased = index - 1;
+      const video = lastSearchResults[indexZeroBased];
+      if (!video) {
+        return JSON.stringify({
+          success: false,
+          error: `Video not found at index ${index}`,
+        });
+      }
       return JSON.stringify({
         success: true,
         action: 'play',
@@ -107,16 +122,20 @@ export const playYouTubeVideoTool = new DynamicStructuredTool({
   },
 });
 
+// Define control player schema separately
+const controlYouTubePlayerSchema = z.object({
+  action: z.enum(['play', 'pause', 'seek', 'volume']).describe('Action to perform on the player'),
+  value: z.number().optional().describe('Value for action: seconds for seek (e.g., 120 for 2 minutes), 0-100 for volume'),
+});
+
 /**
  * Control YouTube player (play, pause, seek, volume)
  */
+// @ts-ignore - Deep type instantiation with Zod/LangChain
 export const controlYouTubePlayerTool = new DynamicStructuredTool({
   name: 'control_youtube_player',
   description: 'Control the YouTube player. Can play, pause, seek to a specific time, or adjust volume. Use this when user wants to control video playback.',
-  schema: z.object({
-    action: z.enum(['play', 'pause', 'seek', 'volume']).describe('Action to perform on the player'),
-    value: z.number().optional().describe('Value for action: seconds for seek (e.g., 120 for 2 minutes), 0-100 for volume'),
-  }),
+  schema: controlYouTubePlayerSchema,
   func: async ({ action, value }) => {
     const validActions = ['play', 'pause', 'seek', 'volume'];
     

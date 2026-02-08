@@ -1,0 +1,33 @@
+{
+  "name": "second-brain-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Second Brain - Locally-hosted AI assistant system",
+  "scripts": {
+    "build": "cd apps/web-ui/packages/server && npm run build && cd ../client && npm run build",
+    "build:server": "cd apps/web-ui/packages/server && npm run build",
+    "build:client": "cd apps/web-ui/packages/client && npm run build",
+    "docker:build": "npm run build && docker-compose build server client",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart",
+    "dev:server": "cd apps/web-ui/packages/server && npm run dev",
+    "dev:client": "cd apps/web-ui/packages/client && npm run dev",
+    "test:server": "cd apps/web-ui/packages/server && npm test",
+    "test:client": "cd apps/web-ui/packages/client && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/second-brain"
+  },
+  "keywords": [
+    "ai",
+    "assistant",
+    "voice",
+    "llm",
+    "docker"
+  ],
+  "author": "",
+  "license": "MIT"
+}

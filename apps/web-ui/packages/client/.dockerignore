@@ -1,0 +1,30 @@
+node_modules
+# Don't ignore dist - we copy pre-built files
+# dist
+npm-debug.log
+.env
+.env.local
+.env.*.local
+*.log
+coverage
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+e2e
+playwright-report
+test-results
+.git
+.gitignore
+README.md
+TESTING_STRATEGY.md
+BROWSER_MODE_GUIDE.md
+RESEARCH_SUMMARY.md
+SOLUTION.md

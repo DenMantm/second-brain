@@ -1,0 +1,52 @@
+# Dependencies
+node_modules
+
+# Don't ignore dist - we copy pre-built files
+# dist
+
+# Logs
+npm-debug.log
+*.log
+logs
+npm-debug.log
+*.log
+logs
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.test
+
+# Testing
+coverage
+__tests__
+*.test.ts
+*.spec.ts
+vitest.config.ts
+README.tests.md
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+*.md
+
+# Config files not needed in container
+nodemon.json
+.eslintrc*
+.prettierrc*

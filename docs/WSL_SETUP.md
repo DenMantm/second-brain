@@ -1,5 +1,18 @@
 # WSL Setup for Second Brain Services
 
+> **⚠️ DEPRECATED - DO NOT USE THIS GUIDE**
+> 
+> This document describes the **legacy manual setup** approach which is **no longer supported**.
+> 
+> **✅ Use Docker instead:**
+> - TTS/STT services run ONLY in Docker containers
+> - See [DOCKER_SERVICES.md](./DOCKER_SERVICES.md) for the current setup
+> - See main [README.md](../README.md) for quick start with `docker-compose up -d`
+> 
+> This document is kept for historical reference only.
+
+---
+
 ## Overview
 
 This guide sets up Windows Subsystem for Linux (WSL2) to run all Second Brain services with GPU acceleration support for AI models.

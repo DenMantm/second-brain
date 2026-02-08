@@ -30,6 +30,13 @@ Second Brain is a **locally-hosted AI assistant system** with voice and text int
 │  - Socket.io WebSocket                               │
 │  - Request orchestration                             │
 └─────────────────────────────────────────────────────┘
+         ↓ HTTP                        ↓ HTTP
+┌─────────────────────┐       ┌─────────────────────┐
+│  🐳 TTS Service     │       │  🐳 STT Service     │
+│  Port 3002          │       │  Port 3003          │
+│  Piper TTS          │       │  Faster-Whisper     │
+│  Docker Container   │       │  Docker Container   │
+└─────────────────────┘       └─────────────────────┘
                     ↓ HTTP/gRPC
 ┌─────────────────────────────────────────────────────┐
 │  LLM Service (Python)                                │
@@ -65,8 +72,12 @@ Second Brain is a **locally-hosted AI assistant system** with voice and text int
 **LLM Service:**
 - Python 3.11 + FastAPI
 - vLLM or llama.cpp for inference
-- Faster-Whisper (STT), Coqui TTS (TTS)
 - HuggingFace transformers
+
+**Voice Services (Docker-Only):**
+- **TTS Service** (Port 3002): Piper TTS in Docker container
+- **STT Service** (Port 3003): Faster-Whisper in Docker container
+- **⚠️ IMPORTANT**: TTS/STT services run ONLY in Docker containers - no manual/local installation supported
 
 **Databases:**
 - PostgreSQL 15 (user data, conversations)
@@ -74,7 +85,7 @@ Second Brain is a **locally-hosted AI assistant system** with voice and text int
 - Redis (optional caching)
 
 **Infrastructure:**
-- Docker + Docker Compose
+- Docker + Docker Compose (required for voice services)
 - Nginx reverse proxy
 - CUDA 12.1+ for GPU acceleration
 
@@ -811,26 +822,17 @@ When implementing features, refer to:
 
 ## Important Reminders
 
-1. **Single-user system** - no authentication or user isolation needed
-2. **Validate all inputs** with Zod schemas
-3. **Log structured data** with context for debugging
-4. **Use explicit types** - avoid `any`
-5. **Handle errors gracefully** with proper user feedback
-6. **Test critical paths** - chat, memory, voice
-7. **Optimize for GPU** - batch requests when possible
-8. **Keep models in VRAM** - avoid repeated loading
-9. **Use connection pooling** for database
-10. **Keep it simple** - focus on core AI assistant functionality
-1. **Always filter by userId** for multi-tenant data isolation
-2. **Validate all inputs** with Zod schemas
-3. **Log structured data** with context for debugging
-4. **Use explicit types** - avoid `any`
-5. **Handle errors gracefully** with proper user feedback
-6. **Test critical paths** - auth, chat, memory
-7. **Optimize for GPU** - batch requests when possible
-8. **Keep models in VRAM** - avoid repeated loading
-9. **Use connection pooling** for database
-10. **Implement rate limiting** on all endpoints
+1. **🐳 Voice services are Docker-only** - TTS/STT run ONLY in Docker containers (ports 3002/3003)
+2. **Single-user system** - no authentication or user isolation needed
+3. **Validate all inputs** with Zod schemas
+4. **Log structured data** with context for debugging
+5. **Use explicit types** - avoid `any`
+6. **Handle errors gracefully** with proper user feedback
+7. **Test critical paths** - chat, memory, voice
+8. **Optimize for GPU** - batch requests when possible
+9. **Keep models in VRAM** - avoid repeated loading
+10. **Use connection pooling** for database
+11. **Keep it simple** - focus on core AI assistant functionality
 
 ---
 

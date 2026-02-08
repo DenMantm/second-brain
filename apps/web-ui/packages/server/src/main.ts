@@ -7,17 +7,22 @@ import { registerRoutes } from './routes';
 import { setupWebSocket } from './websocket';
 
 const fastify = Fastify({
-  logger: {
-    level: config.logLevel,
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'HH:MM:ss Z',
-        ignore: 'pid,hostname',
-      },
-    },
-  },
+  logger:
+    config.nodeEnv === 'production'
+      ? {
+          level: config.logLevel,
+        }
+      : {
+          level: config.logLevel,
+          transport: {
+            target: 'pino-pretty',
+            options: {
+              colorize: true,
+              translateTime: 'HH:MM:ss Z',
+              ignore: 'pid,hostname',
+            },
+          },
+        },
 });
 
 async function start() {
@@ -63,9 +68,8 @@ async function start() {
     ║   Second Brain API Server              ║
     ║   🚀 Running on port ${config.port}           ║
     ╚════════════════════════════════════════╝
-    `);
-  } catch (err) {
-    fastify.log.error(err);
+    `);  } catch (err) {
+    fastify.log.error(err instanceof Error ? err : new Error(String(err)));
     process.exit(1);
   }
 }
@@ -80,7 +84,7 @@ signals.forEach((signal) => {
       fastify.log.info('Server closed successfully');
       process.exit(0);
     } catch (err) {
-      fastify.log.error('Error during shutdown:', err);
+      fastify.log.error({ err }, 'Error during shutdown');
       process.exit(1);
     }
   });

@@ -1,7 +1,58 @@
-# Docker Compose for Second Brain Services - CPU Optimized
+# Docker Compose for Second Brain - All Services
 version: '3.8'
 
 services:
+  # API Server (Node.js + TypeScript)
+  server:
+    build:
+      context: ./apps/web-ui/packages/server
+      dockerfile: Dockerfile
+    container_name: second-brain-server
+    ports:
+      - "3030:3030"
+    environment:
+      - NODE_ENV=production
+      - PORT=3030
+      - HOST=0.0.0.0
+      - LOG_LEVEL=info
+      - CORS_ORIGIN=https://localhost:8443
+      - TTS_SERVICE_URL=http://tts-service:3002
+      - STT_SERVICE_URL=http://stt-service:3003
+      - LLM_SERVICE_URL=http://host.docker.internal:1234/v1
+    restart: unless-stopped
+    networks:
+      - second-brain-network
+    depends_on:
+      - tts-service
+      - stt-service
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3030/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Web Client (React + Vite + Nginx)
+  client:
+    build:
+      context: ./apps/web-ui/packages/client
+      dockerfile: Dockerfile
+    container_name: second-brain-client
+    ports:
+      - "8081:8080"   # HTTP (redirects to HTTPS)
+      - "8443:8443"   # HTTPS
+    restart: unless-stopped
+    networks:
+      - second-brain-network
+    depends_on:
+      - server
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
   # Text-to-Speech Service (CPU)
   tts-service:
     build:
@@ -68,3 +119,15 @@ services:
 networks:
   second-brain-network:
     driver: bridge
+
+# Quick reference:
+# Start all services:     docker-compose up -d
+# Stop all services:      docker-compose down
+# View logs:              docker-compose logs -f [service]
+# Restart service:        docker-compose restart [service]
+# 
+# Services:
+#   - client:       http://localhost:8080 (Web UI)
+#   - server:       http://localhost:3030 (API)
+#   - tts-service:  http://localhost:3002 (Text-to-Speech)
+#   - stt-service:  http://localhost:3003 (Speech-to-Text)
