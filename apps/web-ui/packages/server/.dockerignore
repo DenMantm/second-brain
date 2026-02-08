@@ -24,7 +24,6 @@ __tests__
 *.test.ts
 *.spec.ts
 vitest.config.ts
-README.tests.md
 
 # IDE
 .vscode

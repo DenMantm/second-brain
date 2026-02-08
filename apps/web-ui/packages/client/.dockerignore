@@ -18,13 +18,8 @@ __tests__
 *.test.tsx
 *.spec.ts
 *.spec.tsx
-e2e
 playwright-report
 test-results
 .git
 .gitignore
 README.md
-TESTING_STRATEGY.md
-BROWSER_MODE_GUIDE.md
-RESEARCH_SUMMARY.md
-SOLUTION.md
