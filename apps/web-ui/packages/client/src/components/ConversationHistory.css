@@ -5,7 +5,6 @@
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  max-height: 600px;
 }
 
 .conversation-history.empty {
@@ -67,6 +66,11 @@
 .message.assistant {
   background: rgba(74, 222, 128, 0.1);
   border-left: 3px solid var(--color-success);
+}
+
+.message.system {
+  background: rgba(251, 191, 36, 0.1);
+  border-left: 3px solid #fbbf24;
 }
 
 .message-header {
