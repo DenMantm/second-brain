@@ -175,7 +175,7 @@ describe('StreamingOrchestrator', () => {
       let sentenceId = 0;
       
       // Mock fetch to track timing
-      (global.fetch as any).mockImplementation(async (url: string, options: any) => {
+      (global.fetch as any).mockImplementation(async (_url: string, _options: any) => {
         const id = sentenceId++;
         const startTime = Date.now();
         fetchTimeline.push({ type: 'start', sentenceId: id, timestamp: startTime });

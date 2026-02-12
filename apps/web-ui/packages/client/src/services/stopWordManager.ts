@@ -13,7 +13,7 @@ export class StopWordManager {
   private detectionCallback?: () => void | Promise<void>;
   private service: WakeWordDetection;
   
-  constructor(stopWord: string = 'stop', threshold: number = 0.75) {
+  constructor(stopWord: string = 'stop', threshold: number = 0.90) {
     this.selectedStopWord = stopWord;
     this.threshold = threshold;
     // Create dedicated instance for stop word

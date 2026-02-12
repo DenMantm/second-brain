@@ -173,7 +173,7 @@ export class StreamingOrchestrator {
         
         this.options.onSentenceDetected?.(sentence, sentenceId);
         
-        // Synthesize with concurrency limit (max 3 concurrent requests)
+        // Synthesize with concurrency limit (max 2 concurrent requests)
         this.synthesizeSentenceWithLimit(sentence, sentenceId);
       }
     }

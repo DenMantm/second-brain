@@ -93,7 +93,8 @@ class TTSEngine:
         except Exception as e:
             logger.error(f"Failed to initialize TTS engine: {e}")
             raise RuntimeError(f"TTS engine initialization failed: {e}")
-async def synthesize(
+
+    async def synthesize(
         self,
         text: str,
         speed: float = 1.0,
@@ -148,6 +149,35 @@ async def synthesize(
         """Synchronous synthesis implementation.
         
         This is the actual synthesis work that runs in a thread pool.
+        """
+        # Synthesize audio using Piper with quality settings
+        audio_chunks = []
+        synthesis_length_scale = self.length_scale / speed
+        
+        for audio_bytes in self.model.synthesize_stream_raw(
+            text,
+            length_scale=synthesis_length_scale,
+            noise_scale=self.noise_scale
+        ):
+            # Convert bytes to numpy array
+            audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
+            audio_chunks.append(audio_array)
+        
+        # Concatenate all chunks
+        audio_data = np.concatenate(audio_chunks) if audio_chunks else np.array([], dtype=np.int16)
+        
+        # Convert to float32 normalized between -1 and 1
+        audio_data = audio_data.astype(np.float32) / 32768.0
+        
+        # Apply audio enhancement if enabled
+        if self.enable_enhancement:
+            audio_data = self._enhance_audio(audio_data)
+        
+        # Get actual sample rate from model config
+        actual_sample_rate = self.config.get("sample_rate", 22050)
+
+        return audio_data, actual_sample_rate
+
     async def synthesize_streaming(
         self,
         text: str,
@@ -171,37 +201,7 @@ async def synthesize(
             if not sentence.strip():
                 continue
                 
-            audio_data, sample_rate = await
-        # Get actual sample rate from model config
-        actual_sample_rate = self.config.get("sample_rate", 22050)
-
-        return audio_data, actual_sample_rate
-            raise RuntimeError(f"Speech synthesis failed: {e}")
-
-    def synthesize_streaming(
-        self,
-        text: str,
-        speed: float = 1.0,
-        chunk_size: int = 100
-    ):
-        """Synthesize speech with streaming output.
-        
-        Args:
-            text: Input text to synthesize
-            speed: Speaking speed
-            chunk_size: Characters per chunk
-            
-        Yields:
-            Audio data chunks
-        """
-        # Split text into sentences or chunks
-        sentences = self._split_into_sentences(text)
-
-        for sentence in sentences:
-            if not sentence.strip():
-                continue
-                
-            audio_data, sample_rate = self.synthesize(sentence, speed)
+            audio_data, sample_rate = await self.synthesize(sentence, speed)
             yield audio_data, sample_rate
 
     def _split_into_sentences(self, text: str) -> list[str]:
