@@ -1,23 +1,26 @@
 /**
  * Stop Word Manager
  * Service-level manager for stop word detection (interrupts assistant when speaking)
- * Uses dedicated WakeWordDetection instance (not shared with wake word)
+ * Uses dedicated OpenWakeWordDetection instance (not shared with wake word)
  * Only listens when assistant is actively speaking
+ * 
+ * NOTE: OpenWakeWord doesn't have a 'stop' model. Using 'timer' as temporary stop word.
+ * To use 'stop', train a custom OpenWakeWord model or switch back to TensorFlow.js.
  */
 
-import { createWakeWordDetection, type WakeWordDetection } from './wakeWord';
+import { createOpenWakeWordDetection, type OpenWakeWordDetection } from './openWakeWord';
 
 export class StopWordManager {
   private selectedStopWord: string;
   private threshold: number;
   private detectionCallback?: () => void | Promise<void>;
-  private service: WakeWordDetection;
+  private service: OpenWakeWordDetection;
   
-  constructor(stopWord: string = 'stop', threshold: number = 0.90) {
+  constructor(stopWord: string = 'timer', threshold: number = 0.6) {
     this.selectedStopWord = stopWord;
     this.threshold = threshold;
     // Create dedicated instance for stop word
-    this.service = createWakeWordDetection();
+    this.service = createOpenWakeWordDetection();
   }
   
   /**

@@ -1,22 +1,22 @@
 /**
  * Wake Word Manager
  * Service-level manager for wake word detection (can be used in stores and components)
- * Uses dedicated WakeWordDetection instance (not shared with stop word)
+ * Uses dedicated OpenWakeWordDetection instance (not shared with stop word)
  */
 
-import { createWakeWordDetection, type WakeWordDetection } from './wakeWord';
+import { createOpenWakeWordDetection, type OpenWakeWordDetection } from './openWakeWord';
 
 export class WakeWordManager {
   private selectedWakeWord: string;
   private threshold: number;
   private detectionCallback?: () => void | Promise<void>;
-  private service: WakeWordDetection;
+  private service: OpenWakeWordDetection;
   
-  constructor(wakeWord: string = 'go', threshold: number = 0.75) {
+  constructor(wakeWord: string = 'hey_jarvis', threshold: number = 0.5) {
     this.selectedWakeWord = wakeWord;
     this.threshold = threshold;
     // Create dedicated instance for wake word
-    this.service = createWakeWordDetection();
+    this.service = createOpenWakeWordDetection();
   }
   
   /**

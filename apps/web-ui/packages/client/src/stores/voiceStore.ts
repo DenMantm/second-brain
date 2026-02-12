@@ -19,7 +19,7 @@ if (typeof window !== 'undefined') {
   if (import.meta.env.MODE !== 'production' || import.meta.env.VITE_EXPOSE_TEST_HOOKS === 'true') {
     (window as any).__getWakeWordService = () => {
       const settingsStore = (window as any).__settingsStore;
-      const wakeWord = settingsStore?.getState?.().selectedWakeWord || 'go';
+      const wakeWord = settingsStore?.getState?.().selectedWakeWord || 'hey_jarvis';
       const manager = new WakeWordManager(wakeWord);
       return {
         isInitialized: () => manager.isInitialized(),
@@ -57,8 +57,17 @@ function getStreamingOrchestrator(): StreamingOrchestrator {
         console.error(`❌ TTS error for sentence ${index}:`, error);
       },
       onComplete: async () => {
-        console.log('🎵 All audio playback complete');
         const store = useVoiceStore.getState();
+        
+        // 🔒 RACE CONDITION FIX: Check if we're still in speaking state
+        // If not, it means user interrupted (stop word or manual stop)
+        // and we should NOT auto-resume wake word detection
+        if (!store.isSpeaking) {
+          console.log('⚠️ onComplete fired but not speaking (user interrupted) - ignoring auto-resume');
+          return;
+        }
+        
+        console.log('🎵 All audio playback complete');
         await store.setSpeaking(false);
         
         // Automatically start recording again for continuous conversation
@@ -161,8 +170,8 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
       // Get wake word from settings
       const settingsStore = typeof window !== 'undefined' ? (window as any).__settingsStore : null;
-      const selectedWakeWord = settingsStore?.getState?.().selectedWakeWord || 'go';
-      const selectedStopWord = settingsStore?.getState?.().selectedStopWord || 'stop';
+      const selectedWakeWord = settingsStore?.getState?.().selectedWakeWord || 'hey_jarvis';
+      const selectedStopWord = settingsStore?.getState?.().selectedStopWord || 'timer';
       
       // Initialize wake word manager
       wakeWordManager = new WakeWordManager(selectedWakeWord);

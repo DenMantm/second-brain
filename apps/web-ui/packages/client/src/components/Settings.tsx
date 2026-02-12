@@ -3,6 +3,14 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useVoiceStore } from '../stores/voiceStore';
 import './Settings.css';
 
+// Helper to format wake word for display
+const formatWakeWord = (word: string): string => {
+  return word
+    .split('_')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+};
+
 export default function Settings() {
   const {
     isOpen,
@@ -141,14 +149,14 @@ export default function Settings() {
                 onChange={(e) => handleWakeWordChange(e.target.value)}
                 className="model-select"
               >
-                <option value="go">Go ⭐ (Recommended)</option>
-                <option value="yes">Yes</option>
-                <option value="up">Up</option>
-                <option value="down">Down</option>
-                <option value="left">Left</option>
-                <option value="right">Right</option>
+                <option value="hey_jarvis">Hey Jarvis ⭐ (Recommended)</option>
+                <option value="alexa">Alexa</option>
+                <option value="hey_mycroft">Hey Mycroft</option>
+                <option value="hey_rhasspy">Hey Rhasspy</option>
+                <option value="timer">Timer</option>
+                <option value="weather">Weather</option>
               </select>
-              <p className="setting-hint">Say this word to activate voice recording</p>
+              <p className="setting-hint">Say "{formatWakeWord(selectedWakeWord)}" to activate voice recording</p>
             </div>
           </div>
 
@@ -163,13 +171,14 @@ export default function Settings() {
                 onChange={(e) => handleStopWordChange(e.target.value)}
                 className="model-select"
               >
-                <option value="stop">Stop ⭐ (Recommended)</option>
-                <option value="no">No</option>
-                <option value="yes">Yes</option>
-                <option value="up">Up</option>
-                <option value="down">Down</option>
+                <option value="timer">Timer ⭐ (Recommended)</option>
+                <option value="hey_jarvis">Hey Jarvis</option>
+                <option value="alexa">Alexa</option>
+                <option value="hey_mycroft">Hey Mycroft</option>
+                <option value="hey_rhasspy">Hey Rhasspy</option>
+                <option value="weather">Weather</option>
               </select>
-              <p className="setting-hint">Say this word to interrupt the assistant while it's speaking</p>
+              <p className="setting-hint">Say "{formatWakeWord(selectedStopWord)}" to interrupt the assistant while speaking</p>
             </div>
           </div>
 

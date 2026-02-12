@@ -48,14 +48,30 @@ const DEFAULT_TTS_SETTINGS: TTSSettings = {
   noise_w_scale: 0.9,
 };
 
+// Migration: Convert old TensorFlow.js wake words to OpenWakeWord equivalents
+const migrateWakeWord = (word: string): string => {
+  const tfToOpenWakeWord: Record<string, string> = {
+    'go': 'hey_jarvis',
+    'yes': 'hey_jarvis',
+    'no': 'timer',
+    'up': 'hey_jarvis',
+    'down': 'hey_jarvis',
+    'left': 'hey_jarvis',
+    'right': 'hey_jarvis',
+    'stop': 'timer',
+  };
+  
+  return tfToOpenWakeWord[word] || word;
+};
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       isOpen: false,
       ttsSettings: DEFAULT_TTS_SETTINGS,
       selectedModel: 'openai/gpt-oss-20b',
-      selectedWakeWord: 'go',
-      selectedStopWord: 'stop',
+      selectedWakeWord: 'hey_jarvis', // OpenWakeWord: hey_jarvis, alexa, hey_mycroft, hey_rhasspy, timer, weather
+      selectedStopWord: 'timer', // OpenWakeWord temporary stop word (no 'stop' model available)
       availableModels: [],
       ttsVoice: 'alba',
       availableVoices: [],
@@ -192,6 +208,19 @@ export const useSettingsStore = create<SettingsState>()(
         ttsVoice: state.ttsVoice,
         audioDuckingVolume: state.audioDuckingVolume,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Migrate old TensorFlow.js wake words to OpenWakeWord
+        if (state) {
+          const migratedWakeWord = migrateWakeWord(state.selectedWakeWord);
+          const migratedStopWord = migrateWakeWord(state.selectedStopWord);
+          
+          if (migratedWakeWord !== state.selectedWakeWord || migratedStopWord !== state.selectedStopWord) {
+            console.log(`🔄 Migrating wake words: "${state.selectedWakeWord}" → "${migratedWakeWord}", "${state.selectedStopWord}" → "${migratedStopWord}"`);
+            state.selectedWakeWord = migratedWakeWord;
+            state.selectedStopWord = migratedStopWord;
+          }
+        }
+      },
     }
   )
 );
