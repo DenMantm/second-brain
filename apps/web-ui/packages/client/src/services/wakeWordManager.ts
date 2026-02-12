@@ -1,25 +1,29 @@
 /**
  * Wake Word Manager
  * Service-level manager for wake word detection (can be used in stores and components)
+ * Uses dedicated WakeWordDetection instance (not shared with stop word)
  */
 
-import { getWakeWordDetection } from './wakeWord';
+import { createWakeWordDetection, type WakeWordDetection } from './wakeWord';
 
 export class WakeWordManager {
   private selectedWakeWord: string;
   private threshold: number;
   private detectionCallback?: () => void | Promise<void>;
+  private service: WakeWordDetection;
   
   constructor(wakeWord: string = 'go', threshold: number = 0.75) {
     this.selectedWakeWord = wakeWord;
     this.threshold = threshold;
+    // Create dedicated instance for wake word
+    this.service = createWakeWordDetection();
   }
   
   /**
    * Initialize wake word detection
    */
   async initialize(): Promise<void> {
-    const service = getWakeWordDetection();
+    const service = this.service;
     
     console.log(`✨ Initializing wake word "${this.selectedWakeWord}"...`);
     await service.initialize([this.selectedWakeWord], this.threshold);
@@ -35,7 +39,7 @@ export class WakeWordManager {
    * Reinitialize with new wake word
    */
   async reinitialize(newWakeWord: string): Promise<void> {
-    const service = getWakeWordDetection();
+    const service = this.service;
     const wasListening = service.getIsListening();
     
     console.log(`🔄 Reinitializing wake word to "${newWakeWord}"...`);
@@ -63,7 +67,7 @@ export class WakeWordManager {
    * Start listening for wake word
    */
   async start(): Promise<void> {
-    const service = getWakeWordDetection();
+    const service = this.service;
     
     if (!service.isInitialized()) {
       await this.initialize();
@@ -77,10 +81,11 @@ export class WakeWordManager {
    * Stop listening
    */
   async stop(): Promise<void> {
-    const service = getWakeWordDetection();
+    const service = this.service;
     
     if (service.isInitialized()) {
-      console.log('🔇 Stopping wake word detection');      await service.stop();
+      console.log('🔇 Stopping wake word detection');
+      await service.stop();
     }
   }
   
@@ -89,7 +94,7 @@ export class WakeWordManager {
    */
   setCallback(callback: () => void | Promise<void>): void {
     this.detectionCallback = callback;
-    const service = getWakeWordDetection();
+    const service = this.service;
     
     if (service.isInitialized()) {
       service.onDetected(callback);
@@ -100,14 +105,14 @@ export class WakeWordManager {
    * Check if listening
    */
   isListening(): boolean {
-    return getWakeWordDetection().getIsListening();
+    return this.service.getIsListening();
   }
   
   /**
    * Check if initialized
    */
   isInitialized(): boolean {
-    return getWakeWordDetection().isInitialized();
+    return this.service.isInitialized();
   }
   
   /**

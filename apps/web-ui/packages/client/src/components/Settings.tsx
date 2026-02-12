@@ -9,18 +9,27 @@ export default function Settings() {
     ttsSettings,
     selectedModel,
     selectedWakeWord,
+    selectedStopWord,
     availableModels,
+    ttsVoice,
+    availableVoices,
+    audioDuckingVolume,
     closeSettings,
     updateTTSSettings,
     setSelectedModel,
     setSelectedWakeWord,
+    setSelectedStopWord,
+    setTtsVoice,
+    setAudioDuckingVolume,
     fetchAvailableModels,
+    fetchAvailableVoices,
   } = useSettingsStore();
 
-  const { reinitializeWakeWord } = useVoiceStore();
+  const { reinitializeWakeWord, reinitializeStopWord } = useVoiceStore();
 
   const [localSettings, setLocalSettings] = useState(ttsSettings);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false);
 
   useEffect(() => {
     if (isOpen && availableModels.length === 0) {
@@ -28,10 +37,22 @@ export default function Settings() {
     }
   }, [isOpen, availableModels.length]);
 
+  useEffect(() => {
+    if (isOpen && availableVoices.length === 0) {
+      handleRefreshVoices();
+    }
+  }, [isOpen, availableVoices.length]);
+
   const handleRefreshModels = async () => {
     setIsLoadingModels(true);
     await fetchAvailableModels();
     setIsLoadingModels(false);
+  };
+
+  const handleRefreshVoices = async () => {
+    setIsLoadingVoices(true);
+    await fetchAvailableVoices();
+    setIsLoadingVoices(false);
   };
 
   useEffect(() => {
@@ -43,6 +64,11 @@ export default function Settings() {
   const handleWakeWordChange = async (newWakeWord: string) => {
     setSelectedWakeWord(newWakeWord);
     await reinitializeWakeWord(newWakeWord);
+  };
+
+  const handleStopWordChange = async (newStopWord: string) => {
+    setSelectedStopWord(newStopWord);
+    await reinitializeStopWord(newStopWord);
   };
 
   const handleSave = () => {
@@ -117,17 +143,97 @@ export default function Settings() {
               >
                 <option value="go">Go ⭐ (Recommended)</option>
                 <option value="yes">Yes</option>
-                <option value="stop">Stop</option>
+                <option value="up">Up</option>
+                <option value="down">Down</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+              <p className="setting-hint">Say this word to activate voice recording</p>
+            </div>
+          </div>
+
+          {/* Stop Word Selection */}
+          <div className="settings-section">
+            <h3>🛑 Stop Word</h3>
+            <div className="setting-item">
+              <label htmlFor="stopword-select">Interrupt Word</label>
+              <select
+                id="stopword-select"
+                value={selectedStopWord}
+                onChange={(e) => handleStopWordChange(e.target.value)}
+                className="model-select"
+              >
+                <option value="stop">Stop ⭐ (Recommended)</option>
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
                 <option value="up">Up</option>
                 <option value="down">Down</option>
               </select>
-              <p className="setting-hint">Say this word to activate voice recording</p>
+              <p className="setting-hint">Say this word to interrupt the assistant while it's speaking</p>
+            </div>
+          </div>
+
+          {/* Audio Ducking */}
+          <div className="settings-section">
+            <h3>🎵 Audio Ducking</h3>
+            <div className="setting-item">
+              <label htmlFor="ducking-volume">
+                YouTube Volume During Recording: {audioDuckingVolume}%
+              </label>
+              <input
+                id="ducking-volume"
+                type="range"
+                min="0"
+                max="50"
+                step="5"
+                value={audioDuckingVolume}
+                onChange={(e) => setAudioDuckingVolume(parseInt(e.target.value))}
+                className="slider"
+              />
+              <div className="slider-labels">
+                <span>Muted (0%)</span>
+                <span>Quiet (10%)</span>
+                <span>Half (50%)</span>
+              </div>
+              <p className="setting-hint">Automatically lower YouTube volume when you speak</p>
             </div>
           </div>
 
           {/* TTS Settings */}
           <div className="settings-section">
             <h3>🔊 Text-to-Speech</h3>
+            
+            {/* Voice Selection */}
+            <div className="setting-item">
+              <label htmlFor="voice-select">
+                Voice
+                <button 
+                  onClick={handleRefreshVoices}
+                  disabled={isLoadingVoices}
+                  className="refresh-models-button"
+                  type="button"
+                  title="Refresh voice list from TTS service"
+                >
+                  {isLoadingVoices ? '⏳' : '🔄'}
+                </button>
+              </label>
+              <select
+                id="voice-select"
+                value={ttsVoice}
+                onChange={(e) => setTtsVoice(e.target.value)}
+                className="model-select"
+                disabled={isLoadingVoices}
+              >
+                {availableVoices.map((voice) => (
+                  <option key={voice.id} value={voice.id}>
+                    {voice.name}
+                  </option>
+                ))}
+              </select>
+              {isLoadingVoices && (
+                <p className="setting-hint">Fetching voices from TTS service...</p>
+              )}
+            </div>
             
             <div className="setting-item">
               <label htmlFor="length-scale">

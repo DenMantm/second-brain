@@ -51,6 +51,7 @@ export async function generateCompletion(
         sessionId: options?.sessionId || 'default-session',
         temperature: options?.temperature ?? 0.7,
         maxTokens: options?.maxTokens ?? 150,
+        model: options?.model,
       }),
     });
 
@@ -91,6 +92,7 @@ export async function* generateCompletionStream(
         sessionId: options?.sessionId || 'default-session',
         temperature: options?.temperature ?? 0.7,
         maxTokens: options?.maxTokens ?? 150,
+        model: options?.model,
       }),
       signal: options?.signal,
     });

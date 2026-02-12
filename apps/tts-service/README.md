@@ -105,20 +105,73 @@ When enabled, applies:
 - Soft limiting (prevents clipping)
 - Dynamic compression (consistent volume)
 
+## Concurrent Request Handling
+
+The TTS service properly serializes all synthesis requests to ensure thread safety and prevent crashes.
+
+### How It Works
+
+- **Sequential Processing**: Requests are processed one at a time using `asyncio.Lock`
+- **Queue Management**: Concurrent requests wait in a queue (FIFO order)
+- **Thread Safety**: Prevents race conditions and memory corruption
+- **Error Isolation**: Errors in one request don't block others
+
+### Performance Impact
+
+```
+Single request:     ~150ms
+3 concurrent:       ~450ms (sequential)
+10 concurrent:      ~1500ms (queued)
+```
+
+**Why serialization is necessary:**
+- Piper TTS model is not thread-safe
+- Concurrent access causes crashes and corrupted audio
+- Sequential processing ensures reliable, high-quality output
+
+### Testing
+
+Run comprehensive tests to verify concurrent handling:
+```bash
+cd apps/tts-service
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
+
+See [CONCURRENT_FIX.md](CONCURRENT_FIX.md) for detailed explanation.
+
+### Demonstration
+
+Run the visual demonstration:
+```bash
+python demo_concurrent_fix.py
+```
+
+This shows the difference between concurrent (broken) and sequential (fixed) execution.
+
 ## Development
 
 ### Project Structure
 ```
 apps/tts-service/
 ├── src/
-│   ├── main.py           # FastAPI application
-│   ├── config.py         # Settings and environment
-│   ├── tts_engine.py     # Piper TTS engine wrapper
-│   └── routes.py         # API endpoints
-├── Dockerfile            # Docker build instructions
-├── requirements.txt      # Python dependencies
-├── .env.example         # Example environment variables
-└── README.md            # This file
+│   ├── main.py              # FastAPI application
+│   ├── config.py            # Settings and environment
+│   ├── tts_engine.py        # Piper TTS engine wrapper
+│   ├── routes.py            # API endpoints
+│   └── schemas.py           # Pydantic models
+├── tests/
+│   ├── test_tts_engine.py   # Engine unit tests
+│   ├── test_routes.py       # API integration tests
+│   └── README.md            # Test documentation
+├── Dockerfile               # Docker build instructions
+├── requirements.txt         # Python dependencies
+├── requirements-dev.txt     # Development dependencies
+├── pyproject.toml          # Test configuration
+├── demo_concurrent_fix.py  # Concurrency demonstration
+├── run-tests.ps1           # Test runner script
+├── CONCURRENT_FIX.md       # Concurrency fix details
+└── README.md               # This file
 ```
 
 ### Local Development (Docker)

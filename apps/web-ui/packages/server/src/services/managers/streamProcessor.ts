@@ -6,6 +6,7 @@
 import type { SessionData } from './sessionManager';
 import { ToolExecutor, type ToolCallResult } from './toolExecutor';
 import { SystemMessage } from '@langchain/core/messages';
+import { logger } from '../../utils/logger';
 
 export interface StreamResult {
   fullResponse: string;
@@ -53,6 +54,9 @@ export class StreamProcessor {
 
     // Build complete tool calls from buffered chunks
     const toolCalls = this.toolExecutor.buildToolCalls(toolCallBuffers);
+    
+    logger.dev('Tool call buffers:', Array.from(toolCallBuffers.entries()));
+    logger.dev('Built tool calls:', toolCalls);
     
     // Execute tool calls and yield results
     const toolResults: ToolCallResult[] = [];

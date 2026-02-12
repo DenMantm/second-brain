@@ -208,7 +208,12 @@ export class WakeWordDetection {
   }
 }
 
-// Singleton instance
+// Factory function to create new instances (for dual wake/stop word support)
+export const createWakeWordDetection = (): WakeWordDetection => {
+  return new WakeWordDetection();
+};
+
+// Singleton instance (legacy support)
 let wakeWordInstance: WakeWordDetection | null = null;
 
 export const getWakeWordDetection = (): WakeWordDetection => {

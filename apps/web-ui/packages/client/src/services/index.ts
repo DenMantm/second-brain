@@ -9,6 +9,9 @@ export { handleToolCall, type ToolCall, type ToolCallResult } from './toolCallHa
 // Wake word management
 export { WakeWordManager } from './wakeWordManager';
 
+// Stop word management
+export { StopWordManager } from './stopWordManager';
+
 // Recording management
 export { 
   RecordingManager, 
@@ -36,3 +39,12 @@ export {
   validateTextForTTS,
   prepareTextForTTS
 } from './textSanitizer';
+
+// Thinking block processing
+export {
+  processThinkingBlocks,
+  stripThinkingBlocks,
+  hasThinkingBlocks,
+  extractThinkingBlocks,
+  type ProcessedContent
+} from './thinkingProcessor';

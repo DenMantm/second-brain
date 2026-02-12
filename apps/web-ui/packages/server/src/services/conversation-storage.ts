@@ -16,6 +16,11 @@ export interface ConversationMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  metadata?: {
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+  };
 }
 
 export interface StoredConversation {
@@ -88,7 +93,8 @@ export function getConversation(conversationId: string): StoredConversation | nu
 export function addMessageToConversation(
   conversationId: string,
   role: 'user' | 'assistant',
-  content: string
+  content: string,
+  metadata?: { model?: string; temperature?: number; maxTokens?: number }
 ): void {
   const conversation = conversationCache.get(conversationId);
   
@@ -100,6 +106,7 @@ export function addMessageToConversation(
     role,
     content,
     timestamp: new Date(),
+    metadata,
   };
   
   conversation.messages.push(message);

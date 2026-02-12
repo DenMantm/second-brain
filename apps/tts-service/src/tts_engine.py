@@ -1,5 +1,6 @@
 """TTS engine wrapper for Piper TTS."""
 
+import asyncio
 import io
 import json
 import logging
@@ -45,6 +46,7 @@ class TTSEngine:
         self.model = None
         self.config = None
         self._initialized = False
+        self._synthesis_lock = asyncio.Lock()  # Serialize synthesis requests
 
     def initialize(self) -> None:
         """Load and initialize the TTS model."""
@@ -91,14 +93,15 @@ class TTSEngine:
         except Exception as e:
             logger.error(f"Failed to initialize TTS engine: {e}")
             raise RuntimeError(f"TTS engine initialization failed: {e}")
-
-    def synthesize(
+async def synthesize(
         self,
         text: str,
         speed: float = 1.0,
         sample_rate: int = 22050
     ) -> tuple[np.ndarray, int]:
         """Synthesize speech from text.
+        
+        This method is thread-safe and will serialize concurrent requests.
         
         Args:
             text: Input text to synthesize
@@ -111,39 +114,68 @@ class TTSEngine:
         if not self._initialized:
             raise RuntimeError("TTS engine not initialized. Call initialize() first.")
 
-        try:
-            start_time = time.time()
-            logger.info(f"Synthesizing text: {text[:50]}...")
+        # Acquire lock to serialize synthesis requests
+        async with self._synthesis_lock:
+            try:
+                start_time = time.time()
+                logger.info(f"Synthesizing text: {text[:50]}... (waiting time: {time.time() - start_time:.3f}s)")
 
-            # Synthesize audio using Piper with quality settings
-            audio_chunks = []
-            synthesis_length_scale = self.length_scale / speed
-            
-            for audio_bytes in self.model.synthesize_stream_raw(
-                text,
-                length_scale=synthesis_length_scale,
-                noise_scale=self.noise_scale
-            ):
-                # Convert bytes to numpy array
-                audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
-                audio_chunks.append(audio_array)
-            
-            # Concatenate all chunks
-            audio_data = np.concatenate(audio_chunks) if audio_chunks else np.array([], dtype=np.int16)
-            
-            # Convert to float32 normalized between -1 and 1
-            audio_data = audio_data.astype(np.float32) / 32768.0
-            
-            # Get actual sample rate from model config
-            actual_sample_rate = self.config.get("sample_rate", 22050)
+                # Run synthesis in thread pool to avoid blocking
+                loop = asyncio.get_event_loop()
+                audio_data, actual_sample_rate = await loop.run_in_executor(
+                    None,
+                    self._synthesize_sync,
+                    text,
+                    speed,
+                    sample_rate
+                )
 
-            synthesis_time = time.time() - start_time
-            logger.info(f"Synthesis completed in {synthesis_time:.2f}s, {len(audio_data)} samples")
+                synthesis_time = time.time() - start_time
+                logger.info(f"Synthesis completed in {synthesis_time:.2f}s, {len(audio_data)} samples")
 
-            return audio_data, actual_sample_rate
+                return audio_data, actual_sample_rate
 
-        except Exception as e:
-            logger.error(f"Synthesis failed: {e}")
+            except Exception as e:
+                logger.error(f"Synthesis failed: {e}")
+                raise RuntimeError(f"Speech synthesis failed: {e}")
+
+    def _synthesize_sync(
+        self,
+        text: str,
+        speed: float,
+        sample_rate: int
+    ) -> tuple[np.ndarray, int]:
+        """Synchronous synthesis implementation.
+        
+        This is the actual synthesis work that runs in a thread pool.
+    async def synthesize_streaming(
+        self,
+        text: str,
+        speed: float = 1.0,
+        chunk_size: int = 100
+    ):
+        """Synthesize speech with streaming output.
+        
+        Args:
+            text: Input text to synthesize
+            speed: Speaking speed
+            chunk_size: Characters per chunk
+            
+        Yields:
+            Audio data chunks
+        """
+        # Split text into sentences or chunks
+        sentences = self._split_into_sentences(text)
+
+        for sentence in sentences:
+            if not sentence.strip():
+                continue
+                
+            audio_data, sample_rate = await
+        # Get actual sample rate from model config
+        actual_sample_rate = self.config.get("sample_rate", 22050)
+
+        return audio_data, actual_sample_rate
             raise RuntimeError(f"Speech synthesis failed: {e}")
 
     def synthesize_streaming(

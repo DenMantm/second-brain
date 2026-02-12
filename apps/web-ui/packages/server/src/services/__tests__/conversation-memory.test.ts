@@ -16,6 +16,24 @@ vi.mock('../../tools/youtube-tools', () => ({
       ),
     },
   ],
+  youtubeToolsDocumentation: {
+    category: 'YOUTUBE CAPABILITIES',
+    description: 'Test description',
+    tools: [],
+    validExamples: [],
+    instructions: [],
+  },
+}));
+
+vi.mock('../../tools/web-search-tools', () => ({
+  webSearchTools: [],
+  webSearchToolsDocumentation: {
+    category: 'WEB SEARCH CAPABILITIES',
+    description: 'Test description', 
+    tools: [],
+    validExamples: [],
+    instructions: [],
+  },
 }));
 
 const createStream = async function* () {

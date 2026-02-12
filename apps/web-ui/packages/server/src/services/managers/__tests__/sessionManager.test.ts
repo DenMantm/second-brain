@@ -26,6 +26,24 @@ vi.mock('../../config', () => ({
 
 vi.mock('../../../tools/youtube-tools', () => ({
   youtubeTools: [],
+  youtubeToolsDocumentation: {
+    category: 'YOUTUBE CAPABILITIES',
+    description: 'Test description',
+    tools: [],
+    validExamples: [],
+    instructions: [],
+  },
+}));
+
+vi.mock('../../../tools/web-search-tools', () => ({
+  webSearchTools: [],
+  webSearchToolsDocumentation: {
+    category: 'WEB SEARCH CAPABILITIES',
+    description: 'Test description',
+    tools: [],
+    validExamples: [],
+    instructions: [],
+  },
 }));
 
 describe('SessionManager', () => {

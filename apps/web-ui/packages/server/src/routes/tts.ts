@@ -26,6 +26,26 @@ export async function ttsRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Get available voices
+  fastify.get('/voices', async (request, reply) => {
+    try {
+      const response = await fetch(`${config.ttsServiceUrl}/api/tts/voices`);
+
+      if (!response.ok) {
+        throw new Error(`TTS service error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      fastify.log.error({ error }, 'TTS voices error');
+      reply.code(500).send({
+        error: 'TTS service unavailable',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
   // Health check
   fastify.get('/health', async () => {
     try {

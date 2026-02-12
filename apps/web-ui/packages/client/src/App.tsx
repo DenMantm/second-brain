@@ -1,6 +1,7 @@
 import VoiceAssistant from './components/VoiceAssistant';
 import Settings from './components/Settings';
 import { YouTubeModal } from './components/YouTubeModal';
+import { WebSearchModal } from './components/WebSearchModal';
 import { ConversationsModal } from './components/ConversationsModal';
 import { useVoiceStore } from './stores/voiceStore';
 import { useSettingsStore } from './stores/settingsStore';
@@ -53,6 +54,7 @@ function App() {
 
       <Settings />
       <YouTubeModal />
+      <WebSearchModal />
       <ConversationsModal />
     </div>
   );

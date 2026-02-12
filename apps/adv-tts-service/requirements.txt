@@ -1,0 +1,37 @@
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# TTS Engine (Piper) - optional for Windows native setup
+# piper-tts==1.2.0
+# onnxruntime-gpu==1.22.0
+# piper-phonemize==1.1.0
+
+# Audio Processing
+soundfile==0.12.1
+numpy>=1.24.0
+pydub==0.25.1
+
+# Async & Websockets
+websockets==12.0
+python-multipart==0.0.21
+
+# Utilities
+python-dotenv==1.0.0
+requests
+
+# Optional engines (install if you enable them)
+# kokoro-tts
+pocket-tts  # Lightweight CPU TTS, 6x faster than real-time
+# qwen-tts
+# transformers
+# torch
+
+# Optional: FlashAttention2 for 2-3x faster inference (requires CUDA compiler)
+# flash-attn>=2.8.0  # Linux: pip install flash-attn --no-build-isolation
+# Note: Windows uses built-in PyTorch SDPA (similar performance) instead
+
+# Optional: 4-bit quantization for Qwen3 (reduces VRAM, increases speed)
+# bitsandbytes>=0.41.0  # Set QWEN3_USE_QUANTIZATION=true in .env

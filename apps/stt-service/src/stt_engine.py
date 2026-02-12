@@ -77,9 +77,12 @@ class STTEngine:
                 audio_path,
                 language=lang,
                 task=task,
-                beam_size=5,
+                beam_size=10,  # Increased from 5 for better accuracy
                 vad_filter=True,
-                vad_parameters=dict(min_silence_duration_ms=500)
+                vad_parameters=dict(
+                    min_silence_duration_ms=300,  # Reduced from 500ms to catch more speech
+                    threshold=0.3  # Lower threshold = more sensitive to speech
+                )
             )
             
             # Collect all segments

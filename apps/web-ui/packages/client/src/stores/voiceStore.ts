@@ -2,8 +2,11 @@ import { create } from 'zustand';
 import { StreamingOrchestrator } from '../services/streamingOrchestrator';
 import { stopAudio } from '../services/tts';
 import { getAudioRecorder } from '../services/audioRecorder';
+import { useYouTubeStore } from './youtubeStore';
+import { processThinkingBlocks } from '../services/thinkingProcessor';
 import { 
   WakeWordManager,
+  StopWordManager,
   RecordingManager,
   LLMStreamManager,
   ConversationManager,
@@ -28,6 +31,7 @@ if (typeof window !== 'undefined') {
 
 // Manager instances
 let wakeWordManager: WakeWordManager | null = null;
+let stopWordManager: StopWordManager | null = null;
 let recordingManager: RecordingManager | null = null;
 let llmStreamManager: LLMStreamManager | null = null;
 let conversationManager: ConversationManager | null = null;
@@ -41,6 +45,10 @@ function getStreamingOrchestrator(): StreamingOrchestrator {
       },
       onTTSStart: async (_sentence, index) => {
         console.log(`🎤 TTS started for sentence ${index}`);
+        const store = useVoiceStore.getState();
+        if (!store.isSpeaking) {
+          await store.setSpeaking(true);
+        }
       },
       onTTSComplete: (_sentence, index) => {
         console.log(`✅ TTS complete for sentence ${index}`);
@@ -51,7 +59,7 @@ function getStreamingOrchestrator(): StreamingOrchestrator {
       onComplete: async () => {
         console.log('🎵 All audio playback complete');
         const store = useVoiceStore.getState();
-        store.setSpeaking(false);
+        await store.setSpeaking(false);
         
         // Automatically start recording again for continuous conversation
         console.log('🎙️ Starting recording for continuous conversation...');
@@ -62,6 +70,8 @@ function getStreamingOrchestrator(): StreamingOrchestrator {
           // Fallback to wake word detection
           if (!wakeWordManager) return;
           if (wakeWordManager.isInitialized() && store.wakeWordEnabled && !wakeWordManager.isListening()) {
+            // Reinitialize wake word detection to ensure proper configuration
+            await wakeWordManager.reinitialize(wakeWordManager.getWakeWord());
             await wakeWordManager.start();
             console.log('👂 Resumed wake word detection as fallback');
           }
@@ -77,6 +87,7 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
+  thinking?: string[]; // Extracted thinking blocks
 }
 
 interface VoiceState {
@@ -88,6 +99,7 @@ interface VoiceState {
   isSpeaking: boolean;
   wakeWordDetected: boolean;
   wakeWordEnabled: boolean;
+  stopWordEnabled: boolean;
   error: string | null;
   messages: Message[];
   currentTranscript: string;
@@ -98,6 +110,7 @@ interface VoiceState {
   // Actions
   initialize: () => Promise<void>;
   reinitializeWakeWord: (newWakeWord: string) => Promise<void>;
+  reinitializeStopWord: (newStopWord: string) => Promise<void>;
   startListening: () => Promise<void>;
   stopListening: () => Promise<void>;
   startRecording: () => Promise<void>;
@@ -107,8 +120,9 @@ interface VoiceState {
   manualTrigger: () => Promise<void>;
   setWakeWordDetected: (detected: boolean) => void;
   setWakeWordEnabled: (enabled: boolean) => void;
+  setStopWordEnabled: (enabled: boolean) => void;
   setProcessing: (processing: boolean) => void;
-  setSpeaking: (speaking: boolean) => void;
+  setSpeaking: (speaking: boolean) => void | Promise<void>;
   addMessage: (role: 'user' | 'assistant' | 'system', content: string) => void;
   updateStreamingText: (text: string) => void;
   clearStreamingText: () => void;
@@ -131,6 +145,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
   isSpeaking: false,
   wakeWordDetected: false,
   wakeWordEnabled: true,
+  stopWordEnabled: true,
   error: null,
   messages: [],
   currentTranscript: '',
@@ -147,6 +162,7 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       // Get wake word from settings
       const settingsStore = typeof window !== 'undefined' ? (window as any).__settingsStore : null;
       const selectedWakeWord = settingsStore?.getState?.().selectedWakeWord || 'go';
+      const selectedStopWord = settingsStore?.getState?.().selectedStopWord || 'stop';
       
       // Initialize wake word manager
       wakeWordManager = new WakeWordManager(selectedWakeWord);
@@ -180,6 +196,35 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       
       await wakeWordManager.initialize();
       
+      // Initialize stop word manager
+      stopWordManager = new StopWordManager(selectedStopWord);
+      stopWordManager.setCallback(async () => {
+        const { isSpeaking } = get();
+        
+        if (!isSpeaking) {
+          console.log('⚠️ Stop word detected but not speaking, ignoring');
+          return;
+        }
+        
+        console.log(`🛑 Stop word "${selectedStopWord}" detected! Interrupting assistant...`);
+        
+        // Stop the stop word detection
+        await stopWordManager?.stop();
+        
+        // Interrupt the assistant
+        await get().interrupt();
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Start recording user input
+        try {
+          await get().startRecording();
+        } catch (error) {
+          console.error('Failed to start recording after stop word:', error);
+        }
+      });
+      
+      await stopWordManager.initialize();
+      
       // Initialize recording manager
       recordingManager = new RecordingManager();
       
@@ -212,9 +257,9 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
 
   reinitializeWakeWord: async (newWakeWord: string) => {
     try {
-      const { isSpeaking, isProcessing } = get();
+      const { isSpeaking } = get();
       
-      if (isSpeaking || isProcessing) {
+      if (isSpeaking) {
         console.warn('⚠️ Deferring wake word change - AI is currently active');
         return;
       }
@@ -251,6 +296,46 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     } catch (error) {
       console.error('Failed to reinitialize wake word:', error);
       set({ error: 'Failed to change wake word' });
+    }
+  },
+
+  reinitializeStopWord: async (newStopWord: string) => {
+    try {
+      const { isSpeaking } = get();
+      
+      if (isSpeaking) {
+        console.warn('⚠️ Deferring stop word change - AI is currently active');
+        return;
+      }
+      
+      if (!stopWordManager) {
+        stopWordManager = new StopWordManager(newStopWord);
+      }
+      
+      await stopWordManager.reinitialize(newStopWord);
+      
+      // Update callback with current store state
+      stopWordManager.setCallback(async () => {
+        const state = get();
+        if (!state.isSpeaking) return;
+        
+        console.log(`🛑 Stop word "${newStopWord}" detected! Interrupting assistant...`);
+        
+        await stopWordManager?.stop();
+        await get().interrupt();
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        try {
+          await get().startRecording();
+        } catch (error) {
+          console.error('Failed to start recording:', error);
+        }
+      });
+      
+      console.log(`✅ Stop word changed to "${newStopWord}"`);
+    } catch (error) {
+      console.error('Failed to reinitialize stop word:', error);
+      set({ error: 'Failed to change stop word' });
     }
   },
 
@@ -300,15 +385,22 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     try {
       set({ isRecording: true, error: null, currentTranscript: '' });
       
+      // Duck YouTube volume during recording
+      useYouTubeStore.getState().duckVolume();
+      
       // Use recording manager
       const result = await recordingManager!.record();
       
       if (!result) {
         set({ isRecording: false, isProcessing: false });
+        // Restore YouTube volume
+        useYouTubeStore.getState().restoreVolume();
         return;
       }
       
       set({ isRecording: false, isProcessing: true });
+      // Restore YouTube volume after recording
+      useYouTubeStore.getState().restoreVolume();
       
       // Handle silence
       if (result.isEmpty) {
@@ -318,8 +410,11 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
           currentTranscript: '',
           wakeWordDetected: false,
         });
+        // Volume already restored above
         
         if (wakeWordManager?.isInitialized() && get().wakeWordEnabled && !wakeWordManager.isListening()) {
+          // Reinitialize wake word detection to ensure proper configuration
+          await wakeWordManager.reinitialize(wakeWordManager.getWakeWord());
           await wakeWordManager.start();
           console.log('👂 Wake word detection resumed after silence');
         }
@@ -347,18 +442,24 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       // Stream LLM response
       let fullText = '';
       
+      // Get model from settings
+      const settingsStore = typeof window !== 'undefined' ? (window as any).__settingsStore : null;
+      const selectedModel = settingsStore?.getState?.().selectedModel || 'openai/gpt-oss-20b';
+      
       llmStreamManager!.setCallbacks({
         onTextChunk: (_chunk, fullTextSoFar) => {
           fullText = fullTextSoFar;
-          get().updateStreamingText(fullText);
+          // Strip thinking blocks from streaming display (but keep full text for storage)
+          const { speech } = processThinkingBlocks(fullTextSoFar);
+          get().updateStreamingText(speech);
         },
         onToolCall: (_toolName, systemMessage, _speechMessage) => {
           get().addMessage('system', systemMessage);
         },
-        onStreamStart: () => {
-          set({ isProcessing: false, isSpeaking: true });
-          // Stop wake word during AI response
-          wakeWordManager?.stop();
+        onStreamStart: async () => {
+          set({ isProcessing: false });
+          // Start speaking mode (pauses wake word, starts stop word)
+          await get().setSpeaking(true);
         },
         onStreamEnd: async () => {
           get().clearStreamingText();
@@ -376,9 +477,13 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
         sessionId: conversationId,
         temperature: 0.7,
         maxTokens: 2048,
+        model: selectedModel,
       });
       
     } catch (error) {
+      // Restore YouTube volume on error
+      useYouTubeStore.getState().restoreVolume();
+      
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('🛑 Recording interrupted');
       } else {
@@ -401,11 +506,15 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
       if (recorder.isRecording) {
         recorder.stop();
         set({ isRecording: false });
+        // Restore YouTube volume when recording stops
+        useYouTubeStore.getState().restoreVolume();
         console.log('⏹️ Recording stopped manually');
       }
     } catch (error) {
       console.error('Error stopping recording:', error);
       set({ isRecording: false });
+      // Restore YouTube volume on error
+      useYouTubeStore.getState().restoreVolume();
     }
   },
 
@@ -500,20 +609,63 @@ export const useVoiceStore = create<VoiceState>((set, get) => ({
     set({ wakeWordEnabled: enabled });
   },
 
+  setStopWordEnabled: (enabled: boolean) => {
+    set({ stopWordEnabled: enabled });
+  },
+
   setProcessing: (processing: boolean) => {
     set({ isProcessing: processing });
   },
 
-  setSpeaking: (speaking: boolean) => {
+  setSpeaking: async (speaking: boolean) => {
+    const wasSpeaking = get().isSpeaking;
+    const { stopWordEnabled, wakeWordEnabled } = get();
     set({ isSpeaking: speaking });
+    
+    // Duck YouTube volume when AI starts speaking, restore when done
+    if (speaking && !wasSpeaking) {
+      useYouTubeStore.getState().duckVolume();
+      
+      // Pause wake word detection while assistant is speaking
+      if (wakeWordEnabled && wakeWordManager && wakeWordManager.isListening()) {
+        console.log('🔇 Pausing wake word detection during speech');
+        await wakeWordManager.stop();
+        // Brief delay to ensure wake word fully releases audio resources
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      
+      // Enable stop word detection when assistant starts speaking
+      if (stopWordEnabled && stopWordManager && !stopWordManager.isListening()) {
+        console.log('🛑 Assistant speaking - enabling stop word detection');
+        await stopWordManager.start();
+      }
+    } else if (!speaking && wasSpeaking) {
+      useYouTubeStore.getState().restoreVolume();
+      
+      // Disable stop word detection when assistant stops speaking
+      if (stopWordManager && stopWordManager.isListening()) {
+        console.log('🔇 Assistant stopped - disabling stop word detection');
+        await stopWordManager.stop();
+      }
+      
+      // Resume wake word detection after assistant finishes
+      if (wakeWordEnabled && wakeWordManager && !wakeWordManager.isListening()) {
+        console.log('👂 Resuming wake word detection');
+        await wakeWordManager.start();
+      }
+    }
   },
 
   addMessage: (role: 'user' | 'assistant' | 'system', content: string) => {
+    // Process thinking blocks for assistant messages
+    const processed = role === 'assistant' ? processThinkingBlocks(content) : null;
+    
     const message: Message = {
       id: crypto.randomUUID(),
       role,
-      content,
+      content: processed ? processed.speech : content, // Display without thinking tags
       timestamp: Date.now(),
+      thinking: processed?.thinking.length ? processed.thinking : undefined,
     };
     set((state) => ({ messages: [...state.messages, message] }));
   },

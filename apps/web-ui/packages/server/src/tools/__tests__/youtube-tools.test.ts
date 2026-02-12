@@ -8,16 +8,20 @@ import {
   searchYouTubeTool, 
   playYouTubeVideoTool, 
   controlYouTubePlayerTool,
+  closeYouTubeTool,
   youtubeTools,
-  getLastSearchResults,
-  clearLastSearchResults,
+  getSessionSearchResults,
+  clearSessionSearchResults,
 } from '../youtube-tools';
 import * as youtubeService from '../../services/youtube';
+import { setCurrentSession, clearCurrentSession } from '../../services/managers/sessionContext';
 
 // Mock the YouTube service
 vi.mock('../../services/youtube');
 
 describe('YouTube LangChain Tools', () => {
+  const TEST_SESSION_ID = 'test-session-123';
+  
   const mockSearchResult = {
     query: 'test query',
     count: 3,
@@ -59,11 +63,15 @@ describe('YouTube LangChain Tools', () => {
   };
 
   beforeEach(() => {
-    clearLastSearchResults();
+    // Set session context for tool execution
+    setCurrentSession(TEST_SESSION_ID);
+    clearSessionSearchResults(TEST_SESSION_ID);
     vi.clearAllMocks();
   });
 
   afterEach(() => {
+    // Clear session context after each test
+    clearCurrentSession();
     vi.clearAllMocks();
   });
 
@@ -107,7 +115,7 @@ describe('YouTube LangChain Tools', () => {
 
       await searchYouTubeTool.invoke({ query: 'test query', max_results: 5 });
 
-      const lastResults = getLastSearchResults();
+      const lastResults = getSessionSearchResults(TEST_SESSION_ID);
       expect(lastResults).toHaveLength(3);
       expect(lastResults[0].video_id).toBe('vid1');
       expect(lastResults[1].video_id).toBe('vid2');
@@ -268,12 +276,37 @@ describe('YouTube LangChain Tools', () => {
     });
   });
 
+  describe('closeYouTubeTool', () => {
+    it('should have correct schema definition', () => {
+      expect(closeYouTubeTool.name).toBe('close_youtube');
+      expect(closeYouTubeTool.description).toContain('Close the YouTube');
+      expect(closeYouTubeTool.schema).toBeDefined();
+    });
+
+    it('should return success response', async () => {
+      const result = await closeYouTubeTool.invoke({});
+      const parsed = JSON.parse(result);
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.action).toBe('close');
+      expect(parsed.message).toBe('Closing YouTube');
+    });
+
+    it('should work without any parameters', async () => {
+      const result = await closeYouTubeTool.invoke({});
+      const parsed = JSON.parse(result);
+
+      expect(parsed.success).toBe(true);
+    });
+  });
+
   describe('youtubeTools array', () => {
-    it('should export all three tools', () => {
-      expect(youtubeTools).toHaveLength(3);
+    it('should export all four tools', () => {
+      expect(youtubeTools).toHaveLength(4);
       expect(youtubeTools[0].name).toBe('search_youtube');
       expect(youtubeTools[1].name).toBe('play_youtube_video');
       expect(youtubeTools[2].name).toBe('control_youtube_player');
+      expect(youtubeTools[3].name).toBe('close_youtube');
     });
 
     it('should all be DynamicStructuredTool instances', () => {
@@ -286,20 +319,20 @@ describe('YouTube LangChain Tools', () => {
     });
   });
 
-  describe('Last search results management', () => {
-    it('should clear last search results', async () => {
+  describe('Session-specific search results management', () => {
+    it('should clear session search results', async () => {
       vi.mocked(youtubeService.searchYouTube).mockResolvedValueOnce(mockSearchResult);
       
       // First do a search
       await searchYouTubeTool.invoke({ query: 'test', max_results: 5 });
-      expect(getLastSearchResults()).toHaveLength(3);
+      expect(getSessionSearchResults(TEST_SESSION_ID)).toHaveLength(3);
 
-      clearLastSearchResults();
-      expect(getLastSearchResults()).toHaveLength(0);
+      clearSessionSearchResults(TEST_SESSION_ID);
+      expect(getSessionSearchResults(TEST_SESSION_ID)).toHaveLength(0);
     });
 
-    it('should return empty array when no searches performed', () => {
-      const results = getLastSearchResults();
+    it('should return empty array when no searches performed for session', () => {
+      const results = getSessionSearchResults(TEST_SESSION_ID);
       expect(results).toEqual([]);
     });
   });

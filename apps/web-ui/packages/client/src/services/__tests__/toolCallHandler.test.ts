@@ -10,6 +10,7 @@ const mockYouTubeStore = {
   showSearch: vi.fn(),
   playVideo: vi.fn(),
   setVolume: vi.fn(),
+  hide: vi.fn(),
   player: {
     playVideo: vi.fn(),
     pauseVideo: vi.fn(),
@@ -125,6 +126,37 @@ describe('toolCallHandler', () => {
     handleToolCall(toolCall);
     
     expect(mockYouTubeStore.player.seekTo).toHaveBeenCalledWith(120, true);
+  });
+  
+  it('should handle close YouTube tool call', () => {
+    const toolCall: ToolCall = {
+      name: 'close_youtube',
+      args: {},
+      result: {
+        success: true,
+        action: 'close',
+        message: 'Closing YouTube'
+      }
+    };
+    
+    const result = handleToolCall(toolCall);
+    
+    expect(mockYouTubeStore.hide).toHaveBeenCalled();
+    expect(result.systemMessage).toContain('close_youtube');
+    expect(result.systemMessage).toContain('Closing YouTube');
+    expect(result.speechMessage).toBe('Closing YouTube');
+  });
+  
+  it('should not close YouTube if result is not successful', () => {
+    const toolCall: ToolCall = {
+      name: 'close_youtube',
+      args: {},
+      result: { success: false }
+    };
+    
+    handleToolCall(toolCall);
+    
+    expect(mockYouTubeStore.hide).not.toHaveBeenCalled();
   });
   
   it('should handle tool call errors', () => {

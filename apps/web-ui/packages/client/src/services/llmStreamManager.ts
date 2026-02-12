@@ -11,6 +11,7 @@ export interface LLMStreamOptions {
   sessionId: string;
   temperature?: number;
   maxTokens?: number;
+  model?: string;
   signal?: AbortSignal;
 }
 
@@ -63,6 +64,7 @@ export class LLMStreamManager {
       sessionId,
       temperature = 0.7,
       maxTokens = 2048,
+      model,
       signal
     } = options;
     
@@ -79,6 +81,7 @@ export class LLMStreamManager {
         sessionId,
         temperature,
         maxTokens,
+        model,
         signal: signal || this.abortController.signal,
       });
       

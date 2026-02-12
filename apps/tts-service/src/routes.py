@@ -90,8 +90,8 @@ async def synthesize_text(
         start_time = time.time()
         engine = get_engine()
 
-        # Synthesize audio
-        audio_data, sample_rate = engine.synthesize(
+        # Synthesize audio (now properly serialized)
+        audio_data, sample_rate = await engine.synthesize(
             text=request.text,
             speed=request.speed,
             sample_rate=settings.tts_sample_rate
@@ -138,8 +138,8 @@ async def synthesize_binary(
     try:
         engine = get_engine()
 
-        # Synthesize audio
-        audio_data, sample_rate = engine.synthesize(
+        # Synthesize audio (now properly serialized)
+        audio_data, sample_rate = await engine.synthesize(
             text=request.text,
             speed=request.speed,
             sample_rate=22050
@@ -196,7 +196,7 @@ async def websocket_stream(websocket: WebSocket):
 
             # Stream synthesis
             sequence_id = 0
-            for audio_chunk, sample_rate in engine.synthesize_streaming(text, speed):
+            async for audio_chunk, sample_rate in engine.synthesize_streaming(text, speed):
                 # Convert to bytes
                 audio_bytes = engine.audio_to_bytes(audio_chunk, sample_rate, "wav")
                 

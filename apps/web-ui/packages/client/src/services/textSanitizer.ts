@@ -13,12 +13,14 @@ export function sanitizeTextForTTS(text: string): string {
   let sanitized = text;
   
   // Remove markdown bold (**text** or __text__)
-  sanitized = sanitized.replace(/\*\*(.+?)\*\*/g, '$1');
-  sanitized = sanitized.replace(/__(.+?)__/g, '$1');
+  // Use [\s\S] instead of . to match across newlines
+  sanitized = sanitized.replace(/\*\*(.+?)\*\*/gs, '$1');
+  sanitized = sanitized.replace(/__(.+?)__/gs, '$1');
   
   // Remove markdown italic (*text* or _text_)
-  sanitized = sanitized.replace(/\*(.+?)\*/g, '$1');
-  sanitized = sanitized.replace(/_(.+?)_/g, '$1');
+  // Must come AFTER bold removal to avoid removing bold asterisks
+  sanitized = sanitized.replace(/\*(.+?)\*/gs, '$1');
+  sanitized = sanitized.replace(/_(.+?)_/gs, '$1');
   
   // Remove markdown code blocks (```code``` or `code`)
   sanitized = sanitized.replace(/```[\s\S]*?```/g, 'code block');

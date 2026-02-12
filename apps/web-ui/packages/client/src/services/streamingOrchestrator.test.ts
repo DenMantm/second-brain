@@ -169,6 +169,68 @@ describe('StreamingOrchestrator', () => {
       expect(global.fetch).toHaveBeenCalledTimes(3);
     });
 
+    it('should limit concurrent TTS requests to 2', async () => {
+      // Track when fetch requests start and complete
+      const fetchTimeline: Array<{ type: 'start' | 'complete', sentenceId: number, timestamp: number }> = [];
+      let sentenceId = 0;
+      
+      // Mock fetch to track timing
+      (global.fetch as any).mockImplementation(async (url: string, options: any) => {
+        const id = sentenceId++;
+        const startTime = Date.now();
+        fetchTimeline.push({ type: 'start', sentenceId: id, timestamp: startTime });
+        
+        // Simulate TTS processing delay
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const completeTime = Date.now();
+        fetchTimeline.push({ type: 'complete', sentenceId: id, timestamp: completeTime });
+        
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          text: async () => '',
+          json: async () => ({
+            audio: btoa(String.fromCharCode(...new Uint8Array(new ArrayBuffer(1024)))),
+            duration: 1.0,
+            sample_rate: 22050
+          }),
+          arrayBuffer: async () => new ArrayBuffer(1024),
+        };
+      });
+      
+      // Send 5 sentences simultaneously
+      await orchestrator.processTextChunk('One. Two. Three. Four. Five.');
+      
+      // Wait for all TTS requests to complete
+      await new Promise(resolve => setTimeout(resolve, 600));
+      
+      // Verify we sent 5 requests total
+      expect(global.fetch).toHaveBeenCalledTimes(5);
+      
+      // Analyze the timeline to check concurrency
+      let maxConcurrent = 0;
+      let currentConcurrent = 0;
+      
+      // Sort events by timestamp
+      const sortedEvents = fetchTimeline.sort((a, b) => a.timestamp - b.timestamp);
+      
+      for (const event of sortedEvents) {
+        if (event.type === 'start') {
+          currentConcurrent++;
+          maxConcurrent = Math.max(maxConcurrent, currentConcurrent);
+        } else {
+          currentConcurrent--;
+        }
+      }
+      
+      // Maximum concurrent requests should not exceed 2
+      expect(maxConcurrent).toBeLessThanOrEqual(2);
+      
+      console.log(`Max concurrent TTS requests: ${maxConcurrent} (limit: 2)`);
+    });
+
     it('should assign unique IDs to sentences', async () => {
       await orchestrator.processTextChunk('First. Second.');
       

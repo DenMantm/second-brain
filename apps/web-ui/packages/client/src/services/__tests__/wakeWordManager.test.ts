@@ -7,13 +7,14 @@ import { WakeWordManager } from '../wakeWordManager';
 
 // Mock the wake word detection service
 vi.mock('../wakeWord', () => ({
-  getWakeWordDetection: vi.fn(() => ({
+  createWakeWordDetection: vi.fn(() => ({
     initialize: vi.fn().mockResolvedValue(undefined),
     start: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
     onDetected: vi.fn(),
     isInitialized: vi.fn().mockReturnValue(true),
     getIsListening: vi.fn().mockReturnValue(false),
+    getAvailableWords: vi.fn().mockReturnValue(['go', 'stop', 'yes', 'no']),
   }))
 }));
 

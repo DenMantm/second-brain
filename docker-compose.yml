@@ -16,14 +16,14 @@ services:
       - HOST=0.0.0.0
       - LOG_LEVEL=info
       - CORS_ORIGIN=https://localhost:8443
-      - TTS_SERVICE_URL=http://tts-service:3002
+      - TTS_SERVICE_URL=http://adv-tts-service:8083
       - STT_SERVICE_URL=http://stt-service:3003
       - LLM_SERVICE_URL=http://host.docker.internal:1234/v1
     restart: unless-stopped
     networks:
       - second-brain-network
     depends_on:
-      - tts-service
+      - adv-tts-service
       - stt-service
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3030/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
@@ -86,6 +86,37 @@ services:
       retries: 3
       start_period: 10s
 
+  # Advanced TTS Service - Pocket TTS (CPU, fast)
+  adv-tts-service:
+    build:
+      context: ./apps/adv-tts-service
+      dockerfile: Dockerfile
+    container_name: second-brain-adv-tts
+    ports:
+      - "8083:8083"
+    volumes:
+      # Mount source code for development (optional, comment out for production)
+      - ./apps/adv-tts-service/src:/app/src:ro
+      # Persist Hugging Face cache to avoid re-downloading models
+      - ./models/hf-cache:/cache/hf
+    environment:
+      - ENVIRONMENT=development
+      - MODEL_TYPE=pocket
+      - POCKET_DEFAULT_VOICE=alba
+      - LOG_LEVEL=info
+      - TTS_HOST=0.0.0.0
+      - TTS_PORT=8083
+      - HF_HOME=/cache/hf
+    restart: unless-stopped
+    networks:
+      - second-brain-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8083/ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   # Speech-to-Text Service (CPU)
   stt-service:
     build:
@@ -127,7 +158,8 @@ networks:
 # Restart service:        docker-compose restart [service]
 # 
 # Services:
-#   - client:       http://localhost:8080 (Web UI)
-#   - server:       http://localhost:3030 (API)
-#   - tts-service:  http://localhost:3002 (Text-to-Speech)
-#   - stt-service:  http://localhost:3003 (Speech-to-Text)
+#   - client:           http://localhost:8080 (Web UI)
+#   - server:           http://localhost:3030 (API)
+#   - adv-tts-service:  http://localhost:8083 (Advanced TTS - Pocket TTS)
+#   - tts-service:      http://localhost:3002 (Legacy Piper TTS)
+#   - stt-service:      http://localhost:3003 (Speech-to-Text)

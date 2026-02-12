@@ -5,6 +5,7 @@ import multipart from '@fastify/multipart';
 import { config } from './config';
 import { registerRoutes } from './routes';
 import { setupWebSocket } from './websocket';
+import { logger } from './utils/logger';
 
 const fastify = Fastify({
   logger:
@@ -68,7 +69,23 @@ async function start() {
     ║   Second Brain API Server              ║
     ║   🚀 Running on port ${config.port}           ║
     ╚════════════════════════════════════════╝
-    `);  } catch (err) {
+    `);
+    
+    logger.separator('SERVER CONFIGURATION');
+    logger.dev('Environment:', process.env.NODE_ENV || 'production');
+    logger.dev('Port:', config.port);
+    logger.dev('LLM Service URL:', config.llmServiceUrl);
+    logger.dev('TTS Service URL:', config.ttsServiceUrl);
+    logger.dev('STT Service URL:', config.sttServiceUrl);
+    
+    // Force PromptManager initialization to see system prompt
+    await import('./services/managers/promptManager').then(m => {
+      const pm = new m.PromptManager();
+      // Initialization logs will trigger here
+    });
+    
+    logger.separator();
+  } catch (err) {
     fastify.log.error(err instanceof Error ? err : new Error(String(err)));
     process.exit(1);
   }

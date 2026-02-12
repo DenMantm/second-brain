@@ -11,7 +11,12 @@ import type { BaseLanguageModelInput } from '@langchain/core/language_models/bas
 import type { AIMessageChunk } from '@langchain/core/messages';
 import { config } from '../../config';
 import { youtubeTools } from '../../tools/youtube-tools';
+import { webSearchTools } from '../../tools/web-search-tools';
 import { PromptManager } from './promptManager';
+import { logger } from '../../utils/logger';
+
+// Combine all tools
+const allTools = [...youtubeTools, ...webSearchTools];
 
 export interface SessionData {
   history: ChatMessageHistory;
@@ -22,11 +27,13 @@ export interface SessionOptions {
   temperature?: number;
   maxTokens?: number;
   systemPrompt?: string;
+  model?: string;
 }
 
 export class SessionManager {
   private sessions = new Map<string, SessionData>();
   private promptManager = new PromptManager();
+  private readonly maxMessagesInContext = 10; // Keep only last 10 messages (+ system prompt)
 
   /**
    * Get or create a session with message history
@@ -47,20 +54,34 @@ export class SessionManager {
    * Create a new session with LLM and history
    */
   private createSession(options?: SessionOptions): SessionData {
+    logger.separator('CREATING NEW SESSION');
+    logger.dev('Options:', options);
+    
     // Create base LLM instance
+    const modelName = options?.model || 'openai/gpt-oss-20b';
     const baseLlm = new ChatOpenAI({
       apiKey: 'sk-dummy-key-for-local-llm', // LM Studio doesn't validate API key
-      modelName: 'openai/gpt-oss-20b', // GPT OSS 20B model
+      modelName: modelName,
       temperature: options?.temperature ?? 0.2,
       maxTokens: options?.maxTokens ?? 2048,
       configuration: {
         baseURL: config.llmServiceUrl,
       },
     });
+    
+    logger.dev('Base LLM created:', {
+      model: modelName,
+      temperature: options?.temperature ?? 0.2,
+      maxTokens: options?.maxTokens ?? 2048,
+      baseURL: config.llmServiceUrl
+    });
 
-    // Bind YouTube tools to LLM for function calling
+    // Bind tools (YouTube + Wikipedia) to LLM for function calling
     // Note: bindTools returns a Runnable, not ChatOpenAI
-    const llm = baseLlm.bindTools(youtubeTools) as unknown as SessionData['llm'];
+    logger.dev('Binding tools to LLM...');
+    logger.dev('Available tools:', allTools.map(t => t.name));
+    const llm = baseLlm.bindTools(allTools) as unknown as SessionData['llm'];
+    logger.dev('Tools bound successfully. Total tools:', allTools.length);
 
     const history = new ChatMessageHistory();
     
@@ -69,6 +90,8 @@ export class SessionManager {
       customPrompt: options?.systemPrompt 
     });
     history.addMessage(new SystemMessage(systemPrompt));
+    logger.dev('System prompt added to history');
+    logger.separator();
     
     return { history, llm };
   }
@@ -116,13 +139,28 @@ export class SessionManager {
 
   /**
    * Get all messages from session history
+   * Trims to keep only recent messages within context limit
    */
   async getMessages(sessionId: string): Promise<any[]> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       return [];
     }
-    return await session.history.getMessages();
+    
+    const allMessages = await session.history.getMessages();
+    
+    // Always keep system prompt (first message) + last N messages
+    if (allMessages.length <= this.maxMessagesInContext + 1) {
+      return allMessages;
+    }
+    
+    // Keep: [SystemMessage, ...last N messages]
+    const systemPrompt = allMessages[0];
+    const recentMessages = allMessages.slice(-this.maxMessagesInContext);
+    
+    logger.dev(`Context trimmed: ${allMessages.length} → ${recentMessages.length + 1} messages (keeping system prompt + last ${this.maxMessagesInContext})`);
+    
+    return [systemPrompt, ...recentMessages];
   }
 
   /**

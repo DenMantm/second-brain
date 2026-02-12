@@ -11,6 +11,7 @@ import { handleToolCall, type ToolCall } from '../services/toolCallHandler';
 export interface UseLLMStreamOptions {
   temperature?: number;
   maxTokens?: number;
+  model?: string;
   onTextChunk?: (chunk: string, fullText: string) => void;
   onToolCall?: (toolName: string, systemMessage: string) => void;
   onSpeechMessage?: (message: string) => Promise<void>;
@@ -40,6 +41,7 @@ export function useLLMStream(
   const {
     temperature = 0.7,
     maxTokens = 2048,
+    model,
     onTextChunk,
     onToolCall,
     onSpeechMessage,
@@ -85,6 +87,7 @@ export function useLLMStream(
         sessionId: streamOptions.sessionId,
         temperature,
         maxTokens,
+        model,
         signal: streamOptions.signal || controller.signal,
       });
       
@@ -160,6 +163,7 @@ export function useLLMStream(
   }, [
     temperature,
     maxTokens,
+    model,
     orchestrator,
     onTextChunk,
     onToolCall,

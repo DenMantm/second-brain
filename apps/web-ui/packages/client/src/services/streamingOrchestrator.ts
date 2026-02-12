@@ -5,6 +5,52 @@
 import { SentenceSplitter } from './sentenceSplitter';
 import { AudioQueueManager } from './audioQueue';
 import { prepareTextForTTS } from './textSanitizer';
+import { stripThinkingBlocks } from './thinkingProcessor';
+
+/**
+ * Simple semaphore for limiting concurrent operations
+ */
+class Semaphore {
+  private currentCount: number;
+  private readonly maxCount: number;
+  private readonly queue: Array<() => void> = [];
+
+  constructor(maxCount: number) {
+    this.maxCount = maxCount;
+    this.currentCount = 0;
+  }
+
+  async acquire(): Promise<void> {
+    // Always return a Promise to ensure async behavior
+    return new Promise<void>((resolve) => {
+      if (this.currentCount < this.maxCount) {
+        this.currentCount++;
+        // Use setImmediate/setTimeout to ensure async execution
+        setTimeout(() => resolve(), 0);
+      } else {
+        this.queue.push(resolve);
+      }
+    });
+  }
+
+  release(): void {
+    const next = this.queue.shift();
+    if (next) {
+      // Don't decrement - just pass the slot to the next waiter
+      setTimeout(() => next(), 0);
+    } else {
+      this.currentCount--;
+    }
+  }
+
+  getActiveCount(): number {
+    return this.currentCount;
+  }
+
+  getQueuedCount(): number {
+    return this.queue.length;
+  }
+}
 interface TTSResult {
   audio: string; // Base64 encoded audio
   duration: number;
@@ -36,6 +82,9 @@ export class StreamingOrchestrator {
   private ttsEndpoint: string;
   private options: StreamingOrchestratorOptions;
   private isInterrupted: boolean = false;
+  private textBuffer: string = ''; // Buffer for handling thinking blocks across chunks
+  private insideThinking: boolean = false; // Track if currently inside <think> tag
+  private ttsSemaphore = new Semaphore(2); // Limit to 2 concurrent TTS requests
   
   constructor(options: StreamingOrchestratorOptions = {}) {
     this.ttsEndpoint = options.ttsEndpoint ?? '/api/tts/synthesize';
@@ -70,23 +119,63 @@ export class StreamingOrchestrator {
   }
   
   /**
-   * Process streaming text chunks
+   * Process streaming text chunks while filtering out thinking blocks
+   * Handles <think> tags that may span multiple chunks
    */
   async processTextChunk(chunk: string): Promise<void> {
     if (this.isInterrupted) {
       return;
     }
     
-    const sentences = this.sentenceSplitter.addChunk(chunk);
+    // Add chunk to buffer
+    this.textBuffer += chunk;
     
-    for (const sentence of sentences) {
-      const sentenceId = this.nextSentenceId++;
-      console.log(`Orchestrator: Detected sentence #${sentenceId}: "${sentence}"`);
+    // Process buffer to extract speech content (non-thinking text)
+    let speechText = '';
+    let i = 0;
+    
+    while (i < this.textBuffer.length) {
+      if (this.insideThinking) {
+        // Look for closing tag
+        const closeTag = this.textBuffer.indexOf('</think>', i);
+        if (closeTag === -1) {
+          // Haven't found closing tag yet, wait for more chunks
+          this.textBuffer = this.textBuffer.substring(i);
+          return;
+        }
+        // Skip past closing tag
+        i = closeTag + 8; // length of '</think>'
+        this.insideThinking = false;
+      } else {
+        // Look for opening tag
+        const openTag = this.textBuffer.indexOf('<think>', i);
+        if (openTag === -1) {
+          // No more thinking tags, rest is speech
+          speechText += this.textBuffer.substring(i);
+          this.textBuffer = '';
+          break;
+        }
+        // Add text before opening tag to speech
+        speechText += this.textBuffer.substring(i, openTag);
+        // Skip to after opening tag
+        i = openTag + 7; // length of '<think>'
+        this.insideThinking = true;
+      }
+    }
+    
+    // If we extracted speech text, process it
+    if (speechText.trim()) {
+      const sentences = this.sentenceSplitter.addChunk(speechText);
       
-      this.options.onSentenceDetected?.(sentence, sentenceId);
-      
-      // Synthesize immediately
-      this.synthesizeSentence(sentence, sentenceId);
+      for (const sentence of sentences) {
+        const sentenceId = this.nextSentenceId++;
+        console.log(`Orchestrator: Detected sentence #${sentenceId}: "${sentence}"`);
+        
+        this.options.onSentenceDetected?.(sentence, sentenceId);
+        
+        // Synthesize with concurrency limit (max 3 concurrent requests)
+        this.synthesizeSentenceWithLimit(sentence, sentenceId);
+      }
     }
   }
   
@@ -98,6 +187,16 @@ export class StreamingOrchestrator {
       return;
     }
     
+    // Process any remaining text in buffer (excluding incomplete thinking blocks)
+    if (this.textBuffer && !this.insideThinking) {
+      const cleaned = stripThinkingBlocks(this.textBuffer);
+      if (cleaned.trim()) {
+        this.sentenceSplitter.addChunk(cleaned);
+      }
+    }
+    this.textBuffer = '';
+    this.insideThinking = false;
+    
     const lastSentence = this.sentenceSplitter.flush();
     
     if (lastSentence && lastSentence.length > 5) {
@@ -105,10 +204,25 @@ export class StreamingOrchestrator {
       console.log(`Orchestrator: Flushed final sentence #${sentenceId}: "${lastSentence}"`);
       
       this.options.onSentenceDetected?.(lastSentence, sentenceId);
-      this.synthesizeSentence(lastSentence, sentenceId);
+      this.synthesizeSentenceWithLimit(lastSentence, sentenceId);
     }
   }
   
+  /**
+   * Wrapper to synthesize with semaphore control
+   */
+  private async synthesizeSentenceWithLimit(sentence: string, sentenceId: number): Promise<void> {
+    await this.ttsSemaphore.acquire();
+    console.log(`Orchestrator: Acquired TTS slot (active: ${this.ttsSemaphore.getActiveCount()}, queued: ${this.ttsSemaphore.getQueuedCount()})`);
+    
+    try {
+      await this.synthesizeSentence(sentence, sentenceId);
+    } finally {
+      this.ttsSemaphore.release();
+      console.log(`Orchestrator: Released TTS slot (active: ${this.ttsSemaphore.getActiveCount()}, queued: ${this.ttsSemaphore.getQueuedCount()})`);
+    }
+  }
+
   /**
    * Synthesize a single sentence
    */
@@ -146,6 +260,7 @@ export class StreamingOrchestrator {
         },
         body: JSON.stringify({
           text: sanitizedText, // Send sanitized text to TTS
+          voice: this.getTTSSettings().voice,
           length_scale: this.getTTSSettings().length_scale,
           noise_scale: this.getTTSSettings().noise_scale,
           noise_w_scale: this.getTTSSettings().noise_w_scale,
@@ -232,6 +347,10 @@ export class StreamingOrchestrator {
     // Clear sentence splitter buffer
     this.sentenceSplitter.clear();
     
+    // Clear thinking block parser state
+    this.textBuffer = '';
+    this.insideThinking = false;
+    
     // Reset state
     this.nextSentenceId = 0;
     this.nextEnqueueId = 0;
@@ -269,11 +388,18 @@ export class StreamingOrchestrator {
     if (typeof window !== 'undefined') {
       const settingsStore = (window as any).__settingsStore;
       if (settingsStore) {
-        return settingsStore.getState().ttsSettings;
+        const state = settingsStore.getState();
+        return {
+          voice: state.ttsVoice,
+          length_scale: state.ttsSettings.length_scale,
+          noise_scale: state.ttsSettings.noise_scale,
+          noise_w_scale: state.ttsSettings.noise_w_scale,
+        };
       }
     }
     // Fallback to defaults
     return {
+      voice: 'alba',
       length_scale: 0.95,
       noise_scale: 0.4,
       noise_w_scale: 0.9,

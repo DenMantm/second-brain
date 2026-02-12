@@ -4,6 +4,7 @@
  */
 
 import { useYouTubeStore, type YouTubeSearchResult } from '../stores/youtubeStore';
+import { useWebSearchStore, type SearchResult, type DuckDuckGoResult } from '../stores/webSearchStore';
 
 /**
  * Tool call data structure from LLM
@@ -100,6 +101,56 @@ function handleControlYouTubePlayer(result: any, args?: Record<string, any>): vo
 }
 
 /**
+ * Handle closing YouTube modal
+ */
+function handleCloseYouTube(result: any): void {
+  if (!result?.success) return;
+  
+  const youtubeStore = useYouTubeStore.getState();
+  youtubeStore.hide();
+}
+
+/**
+ * Handle closing Web Search modal
+ */
+function handleCloseWebSearch(result: any): void {
+  if (!result?.success) return;
+  
+  const webSearchStore = useWebSearchStore.getState();
+  webSearchStore.hide();
+}
+
+/**
+ * Handle Web Search tool call
+ */
+function handleWebSearch(result: any, args?: Record<string, any>): void {
+  if (!result?.success || !result.results) return;
+  
+  const webSearchStore = useWebSearchStore.getState();
+  const searchResults: SearchResult[] = result.results.map((article: any) => ({
+    pageid: article.pageid || 0,
+    title: article.title || '',
+    snippet: article.snippet || '',
+    wordcount: article.wordcount || 0,
+    url: article.url || '',
+    tags: Array.isArray(article.tags) ? article.tags : ['wikipedia'],
+  }));
+  
+  const query = result.query || args?.query || 'Web Search';
+  const totalHits = result.totalHits || searchResults.length;
+  const suggestion = result.suggestion;
+  const duckduckgoResults: DuckDuckGoResult[] = (result.duckduckgoResults || []).map((item: any) => ({
+    title: item.title || '',
+    url: item.url || '',
+    snippet: item.snippet || '',
+    displayUrl: item.displayUrl,
+    tags: Array.isArray(item.tags) ? item.tags : ['duckduckgo'],
+  }));
+  
+  webSearchStore.showResults(query, searchResults, totalHits, suggestion, duckduckgoResults);
+}
+
+/**
  * Main handler for all tool calls
  * Executes tool-specific logic and returns messages for history/speech
  */
@@ -122,6 +173,15 @@ export function handleToolCall(toolCall: ToolCall): ToolCallResult {
     case 'control_youtube_player':
       handleControlYouTubePlayer(result, toolArgs);
       break;
+    case 'close_youtube':
+      handleCloseYouTube(result);
+      break;
+    case 'web_search':
+      handleWebSearch(result, toolArgs);
+      break;
+    case 'close_web_search':
+      handleCloseWebSearch(result);
+      break;
     default:
       console.warn(`Unknown tool: ${toolName}`);
   }
@@ -132,11 +192,13 @@ export function handleToolCall(toolCall: ToolCall): ToolCallResult {
   
   if (result?.success && result.message) {
     systemMessage = `${systemMessage} - ${result.message}`;
-    speechMessage = result.message;
+    // Don't synthesize system messages - only user-facing content
+    // System messages like "Video playing" or tool confirmations are silent
   } else if (result && result.success === false && result.error) {
     systemMessage = `${systemMessage} - Error: ${result.error}`;
-    speechMessage = result.error;
+    // Don't synthesize error messages - they're for debugging/display only
   }
   
+  // speechMessage remains empty - tool results are silent
   return { systemMessage, speechMessage };
 }

@@ -30,6 +30,7 @@ interface YouTubeState {
   isPlaying: boolean;
   volume: number;
   isMuted: boolean;
+  previousVolume: number | null; // For audio ducking
   
   // Actions
   showSearch: (query: string, results: YouTubeSearchResult[]) => void;
@@ -46,6 +47,8 @@ interface YouTubeState {
   volumeDown: () => void;
   toggleMute: () => void;
   updatePlayerState: () => void;
+  duckVolume: () => void; // Lower volume for voice recording
+  restoreVolume: () => void; // Restore volume after recording
 }
 
 export const useYouTubeStore = create<YouTubeState>((set, get) => ({
@@ -61,6 +64,7 @@ export const useYouTubeStore = create<YouTubeState>((set, get) => ({
   isPlaying: false,
   volume: 100,
   isMuted: false,
+  previousVolume: null,
 
   // Show search results and maximize modal
   showSearch: (query: string, results: YouTubeSearchResult[]) => {
@@ -175,5 +179,28 @@ export const useYouTubeStore = create<YouTubeState>((set, get) => ({
     } catch (error) {
       console.error('Error updating player state:', error);
     }
+  },
+  
+  duckVolume: () => {
+    const { player, volume, previousVolume } = get();
+    if (!player || previousVolume !== null) return; // Already ducked
+    
+    // Get ducking volume from settings
+    const settingsStore = typeof window !== 'undefined' ? (window as any).__settingsStore : null;
+    const duckingVolume = settingsStore?.getState?.().audioDuckingVolume ?? 10;
+    
+    console.log(`🔉 Ducking YouTube volume: ${volume}% → ${duckingVolume}%`);
+    set({ previousVolume: volume });
+    player.setVolume(duckingVolume);
+    set({ volume: duckingVolume });
+  },
+  
+  restoreVolume: () => {
+    const { player, previousVolume } = get();
+    if (!player || previousVolume === null) return; // Nothing to restore
+    
+    console.log(`🔊 Restoring YouTube volume: 10% → ${previousVolume}%`);
+    player.setVolume(previousVolume);
+    set({ volume: previousVolume, previousVolume: null });
   },
 }));

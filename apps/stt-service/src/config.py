@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     
     # Model configuration
     model_path: str = "/models/whisper"
-    model_size: str = "base"  # tiny, base, small, medium, large-v2, large-v3
+    model_size: str = "small"  # tiny, base, small, medium, large-v2, large-v3 (small = better accuracy)
     
     # Server configuration
     host: str = "0.0.0.0"

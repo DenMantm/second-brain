@@ -1,9 +1,14 @@
 /**
  * Tool Executor
- * Handles parsing and execution of LLM tool calls (YouTube functions)
+ * Handles parsing and execution of LLM tool calls (YouTube and Web Search functions)
  */
 
 import { youtubeTools } from '../../tools/youtube-tools';
+import { webSearchTools } from '../../tools/web-search-tools';
+import { logger } from '../../utils/logger';
+
+// Combine all tools
+const allTools = [...youtubeTools, ...webSearchTools];
 
 export interface ToolCall {
   name: string;
@@ -96,9 +101,14 @@ export class ToolExecutor {
     toolCall: ToolCall,
     userMessage: string
   ): Promise<ToolCallResult> {
+    logger.separator('EXECUTING TOOL CALL');
+    logger.dev('Tool name:', toolCall.name);
+    logger.dev('Tool args:', toolCall.args);
+    logger.dev('User message:', userMessage);
+    
     try {
       // Find the matching tool
-      const tool = youtubeTools.find(t => t.name === toolCall.name);
+      const tool = allTools.find(t => t.name === toolCall.name);
       
       if (!tool) {
         throw new Error(`Tool not found: ${toolCall.name}`);
@@ -119,6 +129,9 @@ export class ToolExecutor {
       // Parse the JSON result
       const parsedResult = JSON.parse(result);
       
+      logger.dev('Tool execution complete:', parsedResult);
+      logger.separator();
+      
       return {
         type: 'tool_call',
         data: {
@@ -129,6 +142,8 @@ export class ToolExecutor {
       };
     } catch (error) {
       console.error(`Failed to execute tool ${toolCall.name}:`, error);
+      logger.dev('Tool execution failed:', error);
+      logger.separator();
       return {
         type: 'tool_call',
         data: {

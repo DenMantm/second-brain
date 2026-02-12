@@ -6,11 +6,12 @@ export async function llmRoutes(fastify: FastifyInstance) {
   // Chat with conversation memory (LangChain) - Streaming version
   fastify.post('/chat/stream', async (request, reply) => {
     try {
-      const { message, sessionId, temperature, maxTokens } = request.body as {
+      const { message, sessionId, temperature, maxTokens, model } = request.body as {
         message: string;
         sessionId?: string;
         temperature?: number;
         maxTokens?: number;
+        model?: string;
       };
 
       if (!message) {
@@ -35,6 +36,7 @@ export async function llmRoutes(fastify: FastifyInstance) {
         const responseStream = await sendMessageStream(session, message, {
           temperature: temperature ?? 0.7,
           maxTokens: maxTokens ?? 2048,
+          model: model,
         });
 
         // Stream chunks to client
@@ -77,11 +79,12 @@ export async function llmRoutes(fastify: FastifyInstance) {
   // Chat with conversation memory (LangChain) - Original non-streaming version
   fastify.post('/chat', async (request, reply) => {
     try {
-      const { message, sessionId, temperature, maxTokens } = request.body as {
+      const { message, sessionId, temperature, maxTokens, model } = request.body as {
         message: string;
         sessionId?: string;
         temperature?: number;
         maxTokens?: number;
+        model?: string;
       };
 
       if (!message) {
@@ -97,6 +100,7 @@ export async function llmRoutes(fastify: FastifyInstance) {
       const responseText = await sendMessage(session, message, {
         temperature: temperature ?? 0.7,
         maxTokens: maxTokens ?? 2048,
+        model: model,
       });
 
       fastify.log.info('LLM response received');

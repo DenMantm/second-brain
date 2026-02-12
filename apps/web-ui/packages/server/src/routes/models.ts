@@ -4,14 +4,16 @@
  */
 
 import { FastifyInstance } from 'fastify';
+import { config } from '../config';
 
-const LM_STUDIO_URL = process.env.LM_STUDIO_URL || 'http://localhost:1234';
+// Use the same LLM service URL as the rest of the app
+const LM_STUDIO_URL = config.llmServiceUrl.replace('/v1', '');
 
 export function registerModelsRoutes(fastify: FastifyInstance) {
   // Get available models from LM Studio
   fastify.get('/api/models', async (_request, reply) => {
     try {
-      fastify.log.info('Fetching models from LM Studio...');
+      fastify.log.info(`Fetching models from ${LM_STUDIO_URL}/v1/models...`);
       
       const response = await fetch(`${LM_STUDIO_URL}/v1/models`);
       
